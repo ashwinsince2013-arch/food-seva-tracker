@@ -174,11 +174,6 @@ function renderAuth() {
         <button class="btn" onclick="submitAuth('signup')">Sign Up</button>
         <button class="btn secondary" onclick="submitAuth('login')">Log In</button>
       </div>
-
-      <div class="footer-space"></div>
-      <p class="small-muted">
-        First admin login: <strong>${escapeHtml(data.adminSeed.email)}</strong> / <strong>${escapeHtml(data.adminSeed.password)}</strong>
-      </p>
     </section>
   `;
 }

@@ -1,4 +1,4 @@
-const API_BASE = "https://food-seva-tracker.onrender.com";
+const API_BASE = "https://food-seva-tracker.onrender.com/api";
 const STORAGE_KEY = "foodSevaTrackerData";
 
 const defaultData = {
@@ -112,7 +112,15 @@ async function api(path, method = "GET", body = null) {
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : null
   });
-  const out = await res.json();
+
+  const text = await res.text();
+  let out;
+  try {
+    out = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(text || "Server returned invalid JSON.");
+  }
+
   if (!res.ok) throw new Error(out.message || "Request failed");
   return out;
 }
@@ -131,6 +139,7 @@ async function loadFromMongo() {
 function updateTabsVisibility() {
   const tabs = document.getElementById("tabs");
   const user = currentUser();
+  if (!tabs) return;
   tabs.classList.toggle("hidden", !user);
   document.querySelectorAll(".tab").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.page === currentPage);

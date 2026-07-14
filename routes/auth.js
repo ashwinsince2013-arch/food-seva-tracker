@@ -6,15 +6,22 @@ const router = express.Router();
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password, adminSeed } = req.body;
-    const existing = await User.findOne({ email });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email, and password are required." });
+    }
 
+    const cleanEmail = email.toLowerCase();
+    const existing = await User.findOne({ email: cleanEmail });
     if (existing) return res.status(400).json({ message: "Account already exists." });
 
-    const admin = adminSeed && email.toLowerCase() === adminSeed.email.toLowerCase() && password === adminSeed.password;
+    const admin =
+      adminSeed &&
+      cleanEmail === adminSeed.email.toLowerCase() &&
+      password === adminSeed.password;
 
     const user = await User.create({
       name,
-      email,
+      email: cleanEmail,
       password,
       admin
     });
@@ -28,11 +35,20 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    const user = await User.findOne({ email });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email, and password are required." });
+    }
+
+    const cleanEmail = email.toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
 
     if (!user) return res.status(404).json({ message: "No account found." });
-    if (user.name.toLowerCase() !== name.toLowerCase()) return res.status(400).json({ message: "Name does not match." });
-    if (user.password !== password) return res.status(400).json({ message: "Wrong password." });
+    if (user.name.toLowerCase() !== name.toLowerCase()) {
+      return res.status(400).json({ message: "Name does not match." });
+    }
+    if (user.password !== password) {
+      return res.status(400).json({ message: "Wrong password." });
+    }
 
     res.json(user);
   } catch (err) {

@@ -28,6 +28,7 @@ let redeemCategory = "Food";
 let redeemKC = 1.0;
 let selectedMemberEmail = null;
 let deductCategory = "Food";
+let authMode = null;
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -152,27 +153,49 @@ function renderAuth() {
   return `
     <section class="card center-card">
       <h2>Food Seva Tracker</h2>
-      <p class="small-muted">
-        Sign up or log in to track seva time, earn Karma Credits, and redeem rewards.
-      </p>
+      <p class="small-muted">Signup or login to continue.</p>
 
-      <label for="authName">Name</label>
-      <input id="authName" type="text" placeholder="Your name" />
+      <div class="list" style="margin-bottom:16px;">
+        <button class="item redeem-choice ${authMode === "signup" ? "active" : ""}" type="button" onclick="setAuthMode('signup')">
+          <strong>Signup</strong>
+          <div class="small-muted">Create a new account.</div>
+        </button>
 
-      <label for="authEmail">Email</label>
-      <input id="authEmail" type="email" placeholder="name@example.com" />
+        <button class="item redeem-choice ${authMode === "login" ? "active" : ""}" type="button" onclick="setAuthMode('login')">
+          <strong>Login</strong>
+          <div class="small-muted">Open an existing account.</div>
+        </button>
+      </div>
 
-      <label for="authPassword">Password</label>
-      <input id="authPassword" type="password" placeholder="Choose a password" />
+      ${authMode === "signup" ? `
+        <label for="authName">Name</label>
+        <input id="authName" type="text" placeholder="Your name" />
 
-      <label for="authConfirm">Confirm Password</label>
-      <input id="authConfirm" type="password" placeholder="Confirm your password" />
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" placeholder="name@example.com" />
+
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" placeholder="Choose a password" />
+
+        <label for="authConfirm">Confirm Password</label>
+        <input id="authConfirm" type="password" placeholder="Confirm your password" />
+      ` : ""}
+
+      ${authMode === "login" ? `
+        <label for="authName">Name</label>
+        <input id="authName" type="text" placeholder="Your name" />
+
+        <label for="authEmail">Email</label>
+        <input id="authEmail" type="email" placeholder="name@example.com" />
+
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" placeholder="Your password" />
+      ` : ""}
 
       <div class="footer-space"></div>
 
       <div class="row">
-        <button class="btn" onclick="submitAuth('signup')">Sign Up</button>
-        <button class="btn secondary" onclick="submitAuth('login')">Log In</button>
+        <button class="btn" onclick="submitAuth()">Confirm</button>
       </div>
     </section>
   `;
@@ -464,20 +487,26 @@ function renderSelectedMember(email) {
   `;
 }
 
-function submitAuth(mode) {
-  const name = document.getElementById("authName").value.trim();
-  const email = document.getElementById("authEmail").value.trim().toLowerCase();
-  const password = document.getElementById("authPassword").value;
-  const confirm = document.getElementById("authConfirm").value;
+function setAuthMode(mode) {
+  authMode = mode;
+  render();
+}
 
-  if (!email || !password || !confirm) return alert("Enter email, password, and confirm password.");
-  if (password !== confirm) return alert("Passwords do not match.");
-  if (mode === "signup" && !name) return alert("Enter your name.");
+function submitAuth() {
+  if (!authMode) return alert("Choose Signup or Login first.");
 
-  const existing = data.users.find(u => u.email.toLowerCase() === email);
+  const name = document.getElementById("authName")?.value.trim() || "";
+  const email = document.getElementById("authEmail")?.value.trim().toLowerCase() || "";
+  const password = document.getElementById("authPassword")?.value || "";
+  const confirm = document.getElementById("authConfirm")?.value || "";
 
-  if (mode === "signup") {
+  if (authMode === "signup") {
+    if (!name || !email || !password || !confirm) return alert("Fill out all signup fields.");
+    if (password !== confirm) return alert("Passwords do not match.");
+
+    const existing = data.users.find(u => u.email.toLowerCase() === email);
     if (existing) return alert("Account already exists. Please log in.");
+
     const admin = data.pendingAdminEmails.includes(email) || (email === data.adminSeed.email.toLowerCase() && password === data.adminSeed.password);
     data.users.push({
       name,
@@ -495,38 +524,22 @@ function submitAuth(mode) {
     return;
   }
 
-  if (email === data.adminSeed.email.toLowerCase() && password === data.adminSeed.password) {
-    let seedUser = data.users.find(u => u.email.toLowerCase() === email);
-    if (!seedUser) {
-      seedUser = {
-        name: data.adminSeed.name,
-        email,
-        password,
-        admin: true,
-        kc: 0,
-        vouchers: { Food: 0, Books: 0, Karma: 0 },
-        logs: [],
-        history: []
-      };
-      data.users.push(seedUser);
+  if (authMode === "login") {
+    if (!name || !email || !password) return alert("Enter name, email, and password.");
+
+    const existing = data.users.find(u => u.email.toLowerCase() === email);
+    if (!existing) return alert("No account found. Please sign up.");
+    if (existing.password !== password) return alert("Wrong password.");
+    if (existing.name.toLowerCase() !== name.toLowerCase()) return alert("Name does not match.");
+
+    if (data.pendingAdminEmails.includes(existing.email.toLowerCase())) {
+      existing.admin = true;
     }
-    seedUser.admin = true;
-    data.currentUserEmail = seedUser.email;
+
+    data.currentUserEmail = existing.email;
     saveData();
     render();
-    return;
   }
-
-  if (!existing) return alert("No account found. Please sign up.");
-  if (existing.password !== password) return alert("Wrong password.");
-
-  if (data.pendingAdminEmails.includes(existing.email.toLowerCase())) {
-    existing.admin = true;
-  }
-
-  data.currentUserEmail = existing.email;
-  saveData();
-  render();
 }
 
 function logout() {
@@ -534,6 +547,7 @@ function logout() {
   saveData();
   currentPage = "home";
   selectedMemberEmail = null;
+  authMode = null;
   render();
 }
 
@@ -741,6 +755,7 @@ document.addEventListener("click", (e) => {
   render();
 });
 
+window.setAuthMode = setAuthMode;
 window.submitAuth = submitAuth;
 window.logout = logout;
 window.updateLogPreview = updateLogPreview;

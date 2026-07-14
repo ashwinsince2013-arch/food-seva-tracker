@@ -15,9 +15,11 @@ router.get("/users", async (req, res) => {
 router.put("/users/:email", async (req, res) => {
   try {
     const email = req.params.email.toLowerCase();
+    const body = { ...req.body, email: req.body.email ? req.body.email.toLowerCase() : req.body.email };
+
     const user = await User.findOneAndUpdate(
       { email },
-      req.body,
+      body,
       { new: true, runValidators: true }
     );
 

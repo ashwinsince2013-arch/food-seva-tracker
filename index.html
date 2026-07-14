@@ -4,31 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Food Seva Tracker</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <div id="topBrand" class="top-brand">
-        <img id="appLogo" src="logo.png" alt="Food Seva Tracker logo" class="logo hidden" />
-        <div id="logoFallback" class="logo-fallback hidden"></div>
-        <div class="brand-title">Food Seva Tracker</div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img id="appLogo" src="logo.png" alt="Food Seva Tracker logo" class="logo" />
+        <div id="logoFallback" class="logo-fallback hidden">Food Seva Tracker</div>
       </div>
-
       <nav id="tabs" class="tabs hidden">
-        <button class="tab active" data-page="home" type="button">Home</button>
-        <button class="tab" data-page="log" type="button">Log Time</button>
-        <button class="tab" data-page="redeem" type="button">Redeem</button>
-        <button class="tab" data-page="voucher" type="button">Voucher</button>
-        <button class="tab admin-only hidden" data-page="members" type="button">Member</button>
-        <button class="tab" data-page="account" type="button">Account</button>
+        <button class="tab" data-page="home">Home</button>
+        <button class="tab" data-page="log">Log Time</button>
+        <button class="tab" data-page="schedule">Schedule</button>
+        <button class="tab" data-page="redeem">Redeem</button>
+        <button class="tab" data-page="voucher">Voucher</button>
+        <button class="tab" data-page="members admin-only">Members</button>
+        <button class="tab" data-page="account">Account</button>
       </nav>
     </header>
 
-    <main id="app" class="content"></main>
+    <main id="app" class="app-content"></main>
   </div>
 
   <script src="script.js"></script>

@@ -13,12 +13,12 @@ const defaultData = {
 };
 
 let data = loadData();
-let currentPage = "home";
+let currentPage = "auth";
 let redeemCategory = "Food";
 let redeemKC = 1.0;
 let selectedMemberEmail = null;
 let deductCategory = "Food";
-let authMode = null;
+let authMode = "signup";
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -129,6 +129,10 @@ async function loadFromMongo() {
   try {
     const users = await api("/api/app/users");
     data.users = users;
+    data.currentUserEmail = "";
+    currentPage = "auth";
+    authMode = "signup";
+    selectedMemberEmail = null;
     saveData();
   } catch (err) {
     console.error(err);
@@ -163,6 +167,8 @@ function render() {
   updateTabsVisibility();
 
   if (!user) {
+    currentPage = "auth";
+    authMode = "signup";
     app.innerHTML = renderAuth();
     setupLogo();
     return;
@@ -500,9 +506,9 @@ async function submitAuth() {
 function logout() {
   data.currentUserEmail = "";
   saveData();
-  currentPage = "home";
+  currentPage = "auth";
   selectedMemberEmail = null;
-  authMode = null;
+  authMode = "signup";
   render();
 }
 
@@ -707,4 +713,10 @@ window.deleteScheduleEntry = deleteScheduleEntry;
 window.togglePassword = togglePassword;
 window.setPage = page => { currentPage = page; render(); };
 
-loadFromMongo().then(render);
+loadFromMongo().then(() => {
+  currentPage = "auth";
+  authMode = "signup";
+  data.currentUserEmail = "";
+  saveData();
+  render();
+});

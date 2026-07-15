@@ -129,7 +129,6 @@ async function loadFromMongo() {
   try {
     const users = await api("/app/users");
     data.users = users;
-    if (!data.currentUserEmail && users.length) data.currentUserEmail = users[0].email;
     saveData();
   } catch (err) {
     console.error(err);

@@ -129,10 +129,6 @@ async function loadFromMongo() {
   try {
     const users = await api("/api/app/users");
     data.users = users;
-    data.currentUserEmail = "";
-    currentPage = "auth";
-    authMode = "signup";
-    selectedMemberEmail = null;
     saveData();
   } catch (err) {
     console.error(err);
@@ -533,7 +529,6 @@ async function submitAuth() {
       const user = await api("/api/auth/signup", "POST", { name, email, password, adminSeed: data.adminSeed });
       data.currentUserEmail = user.email;
       currentPage = "home";
-      await loadFromMongo();
       saveData();
       render();
       return;
@@ -544,7 +539,6 @@ async function submitAuth() {
       const user = await api("/api/auth/login", "POST", { name, email, password });
       data.currentUserEmail = user.email;
       currentPage = "home";
-      await loadFromMongo();
       saveData();
       render();
     }

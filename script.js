@@ -147,8 +147,6 @@ function updateTabsVisibility() {
   });
 }
 
-function setupLogo() {}
-
 function render() {
   const app = document.getElementById("app");
   const user = currentUser();

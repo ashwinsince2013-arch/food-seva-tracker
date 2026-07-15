@@ -11,9 +11,7 @@
   --shadow: 0 10px 30px rgba(36, 72, 114, 0.10);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -128,9 +126,7 @@ body {
   align-items: center;
 }
 
-.row.wrap {
-  flex-wrap: wrap;
-}
+.row.wrap { flex-wrap: wrap; }
 
 .space-between {
   justify-content: space-between;
@@ -146,17 +142,9 @@ body {
   font-weight: 700;
 }
 
-.btn.secondary {
-  background: #7b8fa8;
-}
-
-.btn.danger {
-  background: var(--danger);
-}
-
-.btn.full {
-  width: 100%;
-}
+.btn.secondary { background: #7b8fa8; }
+.btn.danger { background: var(--danger); }
+.btn.full { width: 100%; }
 
 .password-wrap {
   display: flex;
@@ -187,9 +175,7 @@ label {
   font-size: 14px;
 }
 
-.footer-space {
-  height: 8px;
-}
+.footer-space { height: 8px; }
 
 .kc-box {
   min-width: 140px;
@@ -230,13 +216,8 @@ label {
   border-top: 1px solid var(--border);
 }
 
-.schedule-main {
-  flex: 1;
-}
-
-.schedule-name {
-  font-weight: 700;
-}
+.schedule-main { flex: 1; }
+.schedule-name { font-weight: 700; }
 
 .trash-btn, .close-btn {
   border: 1px solid var(--border);
@@ -275,18 +256,14 @@ label {
   margin-bottom: 8px;
 }
 
-.plain-amount {
-  max-width: 240px;
-}
+.plain-amount { max-width: 240px; }
 
 .hidden {
   display: none !important;
 }
 
 @media (max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+  .grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 700px) {

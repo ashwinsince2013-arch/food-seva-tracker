@@ -1,4 +1,4 @@
-const API_BASE = "https://food-seva-tracker.onrender.com/api";
+const API_BASE = "https://food-seva-tracker.onrender.com";
 const STORAGE_KEY = "foodSevaTrackerData";
 
 const defaultData = {
@@ -127,7 +127,7 @@ async function api(path, method = "GET", body = null) {
 
 async function loadFromMongo() {
   try {
-    const users = await api("/app/users");
+    const users = await api("/api/app/users");
     data.users = users;
     saveData();
   } catch (err) {
@@ -477,7 +477,7 @@ async function submitAuth() {
     if (authMode === "signup") {
       if (!name || !email || !password || !confirm) return alert("Fill out all signup fields.");
       if (password !== confirm) return alert("Passwords do not match.");
-      const user = await api("/auth/signup", "POST", { name, email, password, adminSeed: data.adminSeed });
+      const user = await api("/api/auth/signup", "POST", { name, email, password, adminSeed: data.adminSeed });
       data.currentUserEmail = user.email;
       await loadFromMongo();
       saveData();
@@ -486,7 +486,7 @@ async function submitAuth() {
     }
     if (authMode === "login") {
       if (!name || !email || !password) return alert("Enter name, email, and password.");
-      const user = await api("/auth/login", "POST", { name, email, password });
+      const user = await api("/api/auth/login", "POST", { name, email, password });
       data.currentUserEmail = user.email;
       await loadFromMongo();
       saveData();
@@ -542,7 +542,7 @@ async function saveLog() {
   user.logs.unshift({ date, start, end, kc: kc.toFixed(1) });
   user.history.unshift(`Logged ${kc.toFixed(1)} KC for ${date}`);
   try {
-    await api(`/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
     await loadFromMongo();
     alert(`Logged successfully. You earned ${kc.toFixed(1)} KC.`);
     render();
@@ -562,7 +562,7 @@ async function confirmRedeem() {
   user.vouchers[redeemCategory] = Number((user.vouchers[redeemCategory] + usd).toFixed(2));
   user.history.unshift(`Redeemed ${redeemKC.toFixed(1)} KC for ${redeemCategory}`);
   try {
-    await api(`/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
     await loadFromMongo();
     alert(`Created ${redeemCategory} voucher for $${usd.toFixed(2)}.`);
     currentPage = "voucher";
@@ -584,7 +584,7 @@ async function saveAccount() {
   user.password = password;
   data.currentUserEmail = email;
   try {
-    await api(`/app/users/${encodeURIComponent(oldEmail)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(oldEmail)}`, "PUT", user);
     await loadFromMongo();
     alert("Account saved.");
     render();
@@ -600,7 +600,7 @@ async function addAdminEmail() {
   const existing = data.users.find(u => u.email.toLowerCase() === clean);
   if (existing) {
     existing.admin = true;
-    await api(`/app/users/${encodeURIComponent(existing.email)}`, "PUT", existing);
+    await api(`/api/app/users/${encodeURIComponent(existing.email)}`, "PUT", existing);
   }
   saveData();
   await loadFromMongo();
@@ -622,7 +622,7 @@ async function deductVoucher(email) {
   const next = Math.max(0, current - amount);
   user.vouchers[deductCategory] = Number(next.toFixed(2));
   try {
-    await api(`/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
     await loadFromMongo();
     alert(`Removed $${amount.toFixed(2)} from ${user.name}'s ${deductCategory} voucher.`);
     render();
@@ -638,7 +638,7 @@ async function removeAdminForMember(email) {
   if (user.email.toLowerCase() === currentUser().email.toLowerCase() && user.admin) return alert("Admins cannot remove themselves.");
   user.admin = false;
   try {
-    await api(`/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
     await loadFromMongo();
     alert(`${user.name} is no longer an admin.`);
     render();
@@ -654,7 +654,7 @@ async function removeMember(email) {
   if (user.email.toLowerCase() === currentUser().email.toLowerCase()) return alert("Admins cannot remove themselves.");
   if (!confirm(`Remove ${user.name}?`)) return;
   try {
-    await fetch(`${API_BASE}/app/users/${encodeURIComponent(user.email)}`, { method: "DELETE" });
+    await fetch(`${API_BASE}/api/app/users/${encodeURIComponent(user.email)}`, { method: "DELETE" });
     await loadFromMongo();
     selectedMemberEmail = null;
     alert("Member removed.");
@@ -671,7 +671,7 @@ async function deleteScheduleEntry(email, logIndex) {
   if (!confirm("Delete this schedule entry?")) return;
   user.logs.splice(logIndex, 1);
   try {
-    await api(`/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
     await loadFromMongo();
     render();
   } catch (err) {

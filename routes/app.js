@@ -1,25 +1,42 @@
 const express = require("express");
-const User = require("../models/User");
+const cors = require("cors");
+const path = require("path");
+const User = require("./models/User");
+const authRouter = require("./auth");
 
-const router = express.Router();
+const app = express();
 
-router.get("/users", async (req, res) => {
+app.use(cors());
+app.use(express.json());
+
+app.use("/auth", authRouter);
+
+app.get("/api/users", async (req, res) => {
   try {
-    const users = await User.find().sort({ _id: -1 });
+    const users = await User.find().lean();
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.put("/users/:email", async (req, res) => {
+app.get("/api/app/users", async (req, res) => {
   try {
-    const email = req.params.email.toLowerCase();
-    const body = { ...req.body, email: req.body.email ? req.body.email.toLowerCase() : req.body.email };
+    const users = await User.find().lean();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.put("/api/app/users/:email", async (req, res) => {
+  try {
+    const email = decodeURIComponent(req.params.email).toLowerCase();
+    const updated = req.body;
 
     const user = await User.findOneAndUpdate(
       { email },
-      body,
+      { $set: updated },
       { new: true, runValidators: true }
     );
 
@@ -33,19 +50,27 @@ router.put("/users/:email", async (req, res) => {
   }
 });
 
-router.delete("/users/:email", async (req, res) => {
+app.delete("/api/app/users/:email", async (req, res) => {
   try {
-    const email = req.params.email.toLowerCase();
+    const email = decodeURIComponent(req.params.email).toLowerCase();
     const user = await User.findOneAndDelete({ email });
 
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
 
-    res.json({ message: "User deleted successfully." });
+    res.json({ message: "User deleted." });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-module.exports = router;
+const publicDir = path.join(__dirname);
+
+app.use(express.static(publicDir));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
+
+module.exports = app;

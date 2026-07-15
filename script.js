@@ -147,16 +147,7 @@ function updateTabsVisibility() {
   });
 }
 
-function setupLogo() {
-  const img = document.getElementById("appLogo");
-  const fallback = document.getElementById("logoFallback");
-  if (!img || !fallback) return;
-  img.classList.add("hidden");
-  fallback.classList.add("hidden");
-  img.onerror = () => { img.classList.add("hidden"); fallback.classList.add("hidden"); };
-  img.onload = () => { img.classList.remove("hidden"); fallback.classList.add("hidden"); };
-  if (img.complete && img.naturalWidth > 0) img.classList.remove("hidden");
-}
+function setupLogo() {}
 
 function render() {
   const app = document.getElementById("app");
@@ -168,7 +159,6 @@ function render() {
 
   if (!user) {
     app.innerHTML = renderAuth();
-    setupLogo();
     return;
   }
 
@@ -181,8 +171,6 @@ function render() {
   if (currentPage === "voucher") app.innerHTML = renderVoucher(user);
   if (currentPage === "account") app.innerHTML = renderAccount(user);
   if (currentPage === "members") app.innerHTML = renderMembers();
-
-  setupLogo();
 }
 
 function renderAuth() {

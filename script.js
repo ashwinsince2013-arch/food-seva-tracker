@@ -147,16 +147,25 @@ function updateTabsVisibility() {
   });
 }
 
+function setupLogo() {
+  const img = document.getElementById("appLogo");
+  const fallback = document.getElementById("logoFallback");
+  if (!img || !fallback) return;
+  img.classList.add("hidden");
+  fallback.classList.add("hidden");
+  img.onerror = () => { img.classList.add("hidden"); fallback.classList.add("hidden"); };
+  img.onload = () => { img.classList.remove("hidden"); fallback.classList.add("hidden"); };
+  if (img.complete && img.naturalWidth > 0) img.classList.remove("hidden");
+}
+
 function render() {
   const app = document.getElementById("app");
   const user = currentUser();
   updateTabsVisibility();
 
-  const title = document.getElementById("pageTitle");
-  if (title) title.textContent = "Food Seva Tracker";
-
   if (!user) {
     app.innerHTML = renderAuth();
+    setupLogo();
     return;
   }
 
@@ -169,6 +178,8 @@ function render() {
   if (currentPage === "voucher") app.innerHTML = renderVoucher(user);
   if (currentPage === "account") app.innerHTML = renderAccount(user);
   if (currentPage === "members") app.innerHTML = renderMembers();
+
+  setupLogo();
 }
 
 function renderAuth() {
@@ -387,20 +398,59 @@ function renderAccount(user) {
 }
 
 function renderMembers() {
+  const members = data.users.filter(u => !u.admin);
   return `
     <section class="card">
       <h2>Members</h2>
-      <p class="small-muted">See everyone who signed up.</p>
+      <p class="small-muted">Click a member to view their vouchers and admin options.</p>
       <div class="list">
-        ${data.users.length ? data.users.map(user => `
+        ${members.length ? members.map(user => `
+          <button type="button" class="item redeem-choice ${selectedMemberEmail === user.email ? "active" : ""}" onclick="selectMember('${escapeHtml(user.email)}')">
+            <strong>${escapeHtml(user.name)}</strong>
+            <div class="small-muted">${escapeHtml(user.email)}</div>
+            <div class="small-muted">${user.kc.toFixed(1)} KC</div>
+          </button>
+        `).join("") : `<div class="item small-muted">No Members yet. When someone logs in or signs up, they will be added here.</div>`}
+      </div>
+      ${selectedMemberEmail ? renderSelectedMember(selectedMemberEmail) : ""}
+      <hr />
+      <h3>Admins</h3>
+      <div class="list">
+        ${data.users.filter(u => u.admin).map(user => `
           <div class="item">
             <strong>${escapeHtml(user.name)}${user.email === currentUser().email ? " (You)" : ""}</strong>
             <div class="small-muted">${escapeHtml(user.email)}</div>
-            <div class="small-muted">${user.kc.toFixed(1)} KC</div>
           </div>
-        `).join("") : `<div class="item small-muted">No members yet.</div>`}
+        `).join("")}
       </div>
+      <div class="footer-space"></div>
+      <button class="btn" onclick="addAdminEmail()">Add Admin</button>
     </section>
+  `;
+}
+
+function renderSelectedMember(email) {
+  const user = data.users.find(u => u.email === email);
+  if (!user) return "";
+  const isSelf = currentUser().email.toLowerCase() === user.email.toLowerCase();
+  const canRemoveAdmin = user.admin && user.email.toLowerCase() !== data.adminSeed.email.toLowerCase();
+  const canRemoveMember = !user.admin && !isSelf;
+  return `
+    <div style="margin-top:16px" class="card">
+      <div class="member-close"><button class="close-btn" type="button" onclick="closeMember()">×</button></div>
+      <h3>${escapeHtml(user.name)}</h3>
+      <p class="small-muted">${escapeHtml(user.email)}</p>
+      <p class="small-muted">${user.kc.toFixed(1)} KC</p>
+      <h4>Vouchers</h4>
+      <div class="list">${Object.entries(user.vouchers).map(([category, usd]) => `<button type="button" class="item deduct-choice ${deductCategory === category ? "active" : ""}" onclick="setDeductCategory('${category}')"><strong>${category}</strong><div class="small-muted">$${Number(usd).toFixed(2)} available</div></button>`).join("")}</div>
+      <label for="deductAmount">Amount to Remove</label><input id="deductAmount" class="plain-amount" type="number" min="0" step="0.01" placeholder="Type the amount of money you want to remove here" />
+      <div class="footer-space"></div>
+      <div class="row wrap">
+        <button class="btn" onclick="deductVoucher('${escapeHtml(user.email)}')">Remove Money</button>
+        <button class="btn secondary ${canRemoveAdmin ? "" : "hidden"}" onclick="removeAdminForMember('${escapeHtml(user.email)}')">Remove Admin</button>
+        <button class="btn danger ${canRemoveMember ? "" : "hidden"}" onclick="removeMember('${escapeHtml(user.email)}')">Remove Member</button>
+      </div>
+    </div>
   `;
 }
 

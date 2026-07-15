@@ -160,7 +160,7 @@ app.delete("/api/app/users/:email", async (req, res) => {
 const publicDir = path.join(__dirname);
 app.use(express.static(publicDir));
 
-app.get("*", (req, res) => {
+app.all("/{*splat}", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
 

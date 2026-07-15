@@ -50,7 +50,7 @@ async function ensureSeedAdmin() {
   if (!existing) await User.create(seedUser());
 }
 
-app.post("/auth/signup", async (req, res) => {
+async function signupHandler(req, res) {
   try {
     const { name, email, password, adminSeed } = req.body;
     const cleanEmail = String(email || "").trim().toLowerCase();
@@ -84,9 +84,9 @@ app.post("/auth/signup", async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+}
 
-app.post("/auth/login", async (req, res) => {
+async function loginHandler(req, res) {
   try {
     const { name, email, password } = req.body;
     const cleanEmail = String(email || "").trim().toLowerCase();
@@ -105,7 +105,12 @@ app.post("/auth/login", async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+}
+
+app.post("/auth/signup", signupHandler);
+app.post("/auth/login", loginHandler);
+app.post("/api/auth/signup", signupHandler);
+app.post("/api/auth/login", loginHandler);
 
 app.get("/api/users", async (req, res) => {
   try {

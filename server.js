@@ -161,25 +161,4 @@ const publicDir = path.join(__dirname);
 app.use(express.static(publicDir));
 
 app.all("/{*splat}", (req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
-});
-
-async function start() {
-  try {
-    if (!MONGO_URI) {
-      throw new Error("Missing MONGO_URI or MONGODB_URI in environment.");
-    }
-
-    await mongoose.connect(MONGO_URI);
-    await ensureSeedAdmin();
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("Server failed to start:", err.message);
-    process.exit(1);
-  }
-}
-
-start();
+  res.sendFile(path.join(publicDir, "index

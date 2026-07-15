@@ -156,8 +156,14 @@ function setupLogo() {
   if (!img || !fallback) return;
   img.classList.add("hidden");
   fallback.classList.add("hidden");
-  img.onerror = () => { img.classList.add("hidden"); fallback.classList.add("hidden"); };
-  img.onload = () => { img.classList.remove("hidden"); fallback.classList.add("hidden"); };
+  img.onerror = () => {
+    img.classList.add("hidden");
+    fallback.classList.add("hidden");
+  };
+  img.onload = () => {
+    img.classList.remove("hidden");
+    fallback.classList.add("hidden");
+  };
   if (img.complete && img.naturalWidth > 0) img.classList.remove("hidden");
 }
 
@@ -168,7 +174,6 @@ function render() {
 
   if (!user) {
     currentPage = "auth";
-    authMode = "signup";
     app.innerHTML = renderAuth();
     setupLogo();
     return;
@@ -240,7 +245,9 @@ function renderAuth() {
       ` : ""}
 
       <div class="footer-space"></div>
-      <div class="row"><button class="btn" onclick="submitAuth()">Confirm</button></div>
+      <div class="row">
+        <button class="btn" onclick="submitAuth()">Confirm</button>
+      </div>
     </section>
   `;
 }
@@ -254,7 +261,10 @@ function renderHome(user) {
             <h1>Welcome, ${escapeHtml(user.name)}</h1>
             <p>Food Seva Tracker is a simple Karma Credit system for seva work at Chinmaya Mission. You log the time you helped, earn KC based on how long you worked, and redeem those points for Food, Books, or Karma. Karma means donation, so the app keeps your rewards and donation options in one place. One KC equals five US dollars in redeem value.</p>
           </div>
-          <div class="kc-box"><div class="kc-number">${user.kc.toFixed(1)} KC</div><div class="kc-label">1 KC = $5 USD</div></div>
+          <div class="kc-box">
+            <div class="kc-number">${user.kc.toFixed(1)} KC</div>
+            <div class="kc-label">1 KC = $5 USD</div>
+          </div>
         </div>
         <hr />
         <h3>What KC Means</h3>
@@ -267,7 +277,10 @@ function renderHome(user) {
           <div class="item"><strong><span class="redeem-icon">🙏</span>Karma (Donation)</strong><div class="small-muted">Use your KC to make a donation and serve more.</div></div>
         </div>
       </div>
-      <div class="card"><h3>How It Works</h3><p class="small-muted">1. Sign up or log in.<br>2. Log the date and time you helped.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p></div>
+      <div class="card">
+        <h3>How It Works</h3>
+        <p class="small-muted">1. Sign up or log in.<br>2. Log the date and time you helped.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p>
+      </div>
     </section>
   `;
 }
@@ -371,7 +384,11 @@ function renderRedeem(user) {
       </div>
       <hr />
       <h3>Choose Amount</h3>
-      <div class="stepper"><button type="button" onclick="changeRedeemKC(-0.5)">-</button><div class="value">${redeemKC.toFixed(1)} KC<br><span class="small-muted">$${kcToUsd(redeemKC)} USD</span></div><button type="button" onclick="changeRedeemKC(0.5)">+</button></div>
+      <div class="stepper">
+        <button type="button" onclick="changeRedeemKC(-0.5)">-</button>
+        <div class="value">${redeemKC.toFixed(1)} KC<br><span class="small-muted">$${kcToUsd(redeemKC)} USD</span></div>
+        <button type="button" onclick="changeRedeemKC(0.5)">+</button>
+      </div>
       <div class="footer-space"></div>
       <button class="btn full" onclick="confirmRedeem()">Confirm</button>
     </section>
@@ -383,7 +400,15 @@ function renderVoucher(user) {
     <section class="card">
       <h2>Voucher</h2>
       <p class="small-muted">After confirm, your voucher appears here. Admins can deduct the exact amount used.</p>
-      <div class="list">${Object.entries(user.vouchers).map(([category, usd]) => `<div class="item"><strong>${category} Voucher</strong><div style="font-size:28px;font-weight:900;color:var(--mist-blue-dark);">$${Number(usd).toFixed(2)}</div><div class="small-muted">${(Number(usd) / 5).toFixed(1)} KC value</div></div>`).join("")}</div>
+      <div class="list">
+        ${Object.entries(user.vouchers).map(([category, usd]) => `
+          <div class="item">
+            <strong>${category} Voucher</strong>
+            <div style="font-size:28px;font-weight:900;color:var(--mist-blue-dark);">$${Number(usd).toFixed(2)}</div>
+            <div class="small-muted">${(Number(usd) / 5).toFixed(1)} KC value</div>
+          </div>
+        `).join("")}
+      </div>
     </section>
   `;
 }
@@ -393,11 +418,20 @@ function renderAccount(user) {
     <section class="card center-card">
       <h2>Account</h2>
       <p class="small-muted">Check your info or update it.</p>
-      <label for="accName">Name</label><input id="accName" value="${escapeHtml(user.name)}" />
-      <label for="accEmail">Email</label><input id="accEmail" type="email" value="${escapeHtml(user.email)}" />
-      <label for="accPassword">Password</label><div class="password-wrap"><input id="accPassword" type="password" value="${escapeHtml(user.password)}" /><button class="password-toggle" type="button" onclick="togglePassword('accPassword', this)">See</button></div>
+      <label for="accName">Name</label>
+      <input id="accName" value="${escapeHtml(user.name)}" />
+      <label for="accEmail">Email</label>
+      <input id="accEmail" type="email" value="${escapeHtml(user.email)}" />
+      <label for="accPassword">Password</label>
+      <div class="password-wrap">
+        <input id="accPassword" type="password" value="${escapeHtml(user.password)}" />
+        <button class="password-toggle" type="button" onclick="togglePassword('accPassword', this)">See</button>
+      </div>
       <div class="footer-space"></div>
-      <div class="row"><button class="btn" onclick="saveAccount()">Save Changes</button><button class="btn danger" onclick="logout()">Log Out</button></div>
+      <div class="row">
+        <button class="btn" onclick="saveAccount()">Save Changes</button>
+        <button class="btn danger" onclick="logout()">Log Out</button>
+      </div>
     </section>
   `;
 }
@@ -423,7 +457,7 @@ function renderMembers() {
       <div class="list">
         ${data.users.filter(u => u.admin).map(user => `
           <div class="item">
-            <strong>${escapeHtml(user.name)}${user.email === currentUser().email ? " (You)" : ""}</strong>
+            <strong>${escapeHtml(user.name)}${currentUser() && user.email === currentUser().email ? " (You)" : ""}</strong>
             <div class="small-muted">${escapeHtml(user.email)}</div>
           </div>
         `).join("")}
@@ -437,7 +471,7 @@ function renderMembers() {
 function renderSelectedMember(email) {
   const user = data.users.find(u => u.email === email);
   if (!user) return "";
-  const isSelf = currentUser().email.toLowerCase() === user.email.toLowerCase();
+  const isSelf = currentUser() && currentUser().email.toLowerCase() === user.email.toLowerCase();
   const canRemoveAdmin = user.admin && user.email.toLowerCase() !== data.adminSeed.email.toLowerCase();
   const canRemoveMember = !user.admin && !isSelf;
   return `
@@ -447,8 +481,16 @@ function renderSelectedMember(email) {
       <p class="small-muted">${escapeHtml(user.email)}</p>
       <p class="small-muted">${user.kc.toFixed(1)} KC</p>
       <h4>Vouchers</h4>
-      <div class="list">${Object.entries(user.vouchers).map(([category, usd]) => `<button type="button" class="item deduct-choice ${deductCategory === category ? "active" : ""}" onclick="setDeductCategory('${category}')"><strong>${category}</strong><div class="small-muted">$${Number(usd).toFixed(2)} available</div></button>`).join("")}</div>
-      <label for="deductAmount">Amount to Remove</label><input id="deductAmount" class="plain-amount" type="number" min="0" step="0.01" placeholder="Type the amount of money you want to remove here" />
+      <div class="list">
+        ${Object.entries(user.vouchers).map(([category, usd]) => `
+          <button type="button" class="item deduct-choice ${deductCategory === category ? "active" : ""}" onclick="setDeductCategory('${category}')">
+            <strong>${category}</strong>
+            <div class="small-muted">$${Number(usd).toFixed(2)} available</div>
+          </button>
+        `).join("")}
+      </div>
+      <label for="deductAmount">Amount to Remove</label>
+      <input id="deductAmount" class="plain-amount" type="number" min="0" step="0.01" placeholder="Type the amount of money you want to remove here" />
       <div class="footer-space"></div>
       <div class="row wrap">
         <button class="btn" onclick="deductVoucher('${escapeHtml(user.email)}')">Remove Money</button>
@@ -459,7 +501,11 @@ function renderSelectedMember(email) {
   `;
 }
 
-function setAuthMode(mode) { authMode = mode; render(); }
+function setAuthMode(mode) {
+  authMode = mode;
+  currentPage = "auth";
+  render();
+}
 
 function togglePassword(id, btn) {
   const input = document.getElementById(id);
@@ -479,21 +525,25 @@ async function submitAuth() {
   const email = document.getElementById("authEmail")?.value.trim().toLowerCase() || "";
   const password = document.getElementById("authPassword")?.value || "";
   const confirm = document.getElementById("authConfirm")?.value || "";
+
   try {
     if (authMode === "signup") {
       if (!name || !email || !password || !confirm) return alert("Fill out all signup fields.");
       if (password !== confirm) return alert("Passwords do not match.");
       const user = await api("/api/auth/signup", "POST", { name, email, password, adminSeed: data.adminSeed });
       data.currentUserEmail = user.email;
+      currentPage = "home";
       await loadFromMongo();
       saveData();
       render();
       return;
     }
+
     if (authMode === "login") {
       if (!name || !email || !password) return alert("Enter name, email, and password.");
       const user = await api("/api/auth/login", "POST", { name, email, password });
       data.currentUserEmail = user.email;
+      currentPage = "home";
       await loadFromMongo();
       saveData();
       render();
@@ -519,11 +569,23 @@ function updateLogPreview() {
   const durationEl = document.getElementById("previewDuration");
   const kcEl = document.getElementById("previewKC");
   if (!durationEl || !kcEl) return;
-  if (!date || !start || !end) { durationEl.textContent = "0 min"; kcEl.textContent = "0.0 KC"; return; }
-  if (date < todayISO()) { durationEl.textContent = "Invalid date"; kcEl.textContent = "0.0 KC"; return; }
+  if (!date || !start || !end) {
+    durationEl.textContent = "0 min";
+    kcEl.textContent = "0.0 KC";
+    return;
+  }
+  if (date < todayISO()) {
+    durationEl.textContent = "Invalid date";
+    kcEl.textContent = "0.0 KC";
+    return;
+  }
   const startMinutes = toMinutes(start);
   const endMinutes = toMinutes(end);
-  if (endMinutes <= startMinutes) { durationEl.textContent = "Invalid time"; kcEl.textContent = "0.0 KC"; return; }
+  if (endMinutes <= startMinutes) {
+    durationEl.textContent = "Invalid time";
+    kcEl.textContent = "0.0 KC";
+    return;
+  }
   const minutes = endMinutes - startMinutes;
   const kc = roundToHalf(minutes / 60);
   durationEl.textContent = `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
@@ -557,8 +619,15 @@ async function saveLog() {
   }
 }
 
-function setRedeemCategory(value) { redeemCategory = value; render(); }
-function changeRedeemKC(delta) { redeemKC = Math.max(0.5, Math.min(10, Number((redeemKC + delta).toFixed(1)))); render(); }
+function setRedeemCategory(value) {
+  redeemCategory = value;
+  render();
+}
+
+function changeRedeemKC(delta) {
+  redeemKC = Math.max(0.5, Math.min(10, Number((redeemKC + delta).toFixed(1))));
+  render();
+}
 
 async function confirmRedeem() {
   const user = currentUser();
@@ -614,9 +683,20 @@ async function addAdminEmail() {
   render();
 }
 
-function selectMember(email) { selectedMemberEmail = email || null; render(); }
-function closeMember() { selectedMemberEmail = null; render(); }
-function setDeductCategory(category) { deductCategory = category; render(); }
+function selectMember(email) {
+  selectedMemberEmail = email || null;
+  render();
+}
+
+function closeMember() {
+  selectedMemberEmail = null;
+  render();
+}
+
+function setDeductCategory(category) {
+  deductCategory = category;
+  render();
+}
 
 async function deductVoucher(email) {
   const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -685,7 +765,7 @@ async function deleteScheduleEntry(email, logIndex) {
   }
 }
 
-document.addEventListener("click", (e) => {
+document.addEventListener("click", e => {
   const tab = e.target.closest(".tab");
   if (!tab || tab.classList.contains("hidden")) return;
   currentPage = tab.dataset.page;
@@ -711,7 +791,10 @@ window.removeAdminForMember = removeAdminForMember;
 window.removeMember = removeMember;
 window.deleteScheduleEntry = deleteScheduleEntry;
 window.togglePassword = togglePassword;
-window.setPage = page => { currentPage = page; render(); };
+window.setPage = page => {
+  currentPage = page;
+  render();
+};
 
 loadFromMongo().then(() => {
   currentPage = "auth";

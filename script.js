@@ -1,11 +1,13 @@
 const API_BASE = "https://food-seva-tracker.onrender.com";
 const STORAGE_KEY = "foodSevaTrackerData";
+const OWNER_EMAIL = "akrwins@gmail.com";
+const PRESENCE_KEY = "foodSevaTrackerPresence";
 
 const defaultData = {
   currentUserEmail: "",
   adminSeed: {
     name: "Arunkumar Rajasekar",
-    email: "akrwins@gmail.com",
+    email: OWNER_EMAIL,
     password: "AshwinKumar123"
   },
   users: [],
@@ -13,12 +15,14 @@ const defaultData = {
 };
 
 let data = loadData();
+let presence = loadPresence();
 let currentPage = "auth";
 let redeemCategory = "Food";
 let redeemKC = 1.0;
 let selectedMemberEmail = null;
 let deductCategory = "Food";
 let authMode = "signup";
+let appMessage = "";
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -41,13 +45,73 @@ function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+function loadPresence() {
+  const raw = localStorage.getItem(PRESENCE_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) || {};
+  } catch {
+    return {};
+  }
+}
+
+function savePresence() {
+  localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence));
+}
+
 function currentUser() {
   return data.users.find(u => u.email === data.currentUserEmail) || null;
+}
+
+function isOwner(email) {
+  return String(email || "").toLowerCase() === OWNER_EMAIL.toLowerCase();
 }
 
 function isAdmin() {
   const user = currentUser();
   return !!(user && user.admin);
+}
+
+function nowISO() {
+  return new Date().toISOString();
+}
+
+function formatLastOnline(iso) {
+  if (!iso) return "Last online: never";
+  const d = new Date(iso);
+  return "Last online: " + d.toLocaleString([], {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function setPresenceFor(email, visible) {
+  const key = String(email || "").toLowerCase();
+  if (!key) return;
+  presence[key] = {
+    visible: !!visible,
+    lastSeen: nowISO()
+  };
+  savePresence();
+}
+
+function userPresence(email) {
+  const key = String(email || "").toLowerCase();
+  return presence[key] || null;
+}
+
+function setAppMessage(text = "") {
+  appMessage = text;
+  const box = document.getElementById("appMessage");
+  if (box) box.innerHTML = text ? `<div class="app-message error">${escapeHtml(text)}</div>` : "";
+}
+
+function setFormError(text = "") {
+  const box = document.getElementById("formError");
+  if (box) box.innerHTML = text ? `<div class="form-error">${escapeHtml(text)}</div>` : "";
 }
 
 function kcToUsd(kc) {
@@ -68,11 +132,12 @@ function todayISO() {
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"]/g, c => ({
+  return String(value).replace(/[&<>\"']/g, c => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
-    '"': "&quot;"
+    '"': "&quot;",
+    "'": "&#39;"
   }[c]));
 }
 
@@ -167,6 +232,7 @@ function render() {
   const app = document.getElementById("app");
   const user = currentUser();
   updateTabsVisibility();
+  setAppMessage(appMessage);
 
   if (!user) {
     currentPage = "auth";
@@ -188,11 +254,19 @@ function render() {
   setupLogo();
 }
 
-function renderAuth() {
+function renderShell(content) {
   return `
+    <div id="appMessage"></div>
+    ${content}
+  `;
+}
+
+function renderAuth() {
+  return renderShell(`
     <section class="card center-card">
       <h2>Food Seva Tracker</h2>
       <p class="small-muted">Signup or login to continue.</p>
+      <div id="formError"></div>
 
       <div class="list" style="margin-bottom:16px;">
         <button class="item redeem-choice ${authMode === "signup" ? "active" : ""}" type="button" onclick="setAuthMode('signup')">
@@ -245,11 +319,11 @@ function renderAuth() {
         <button class="btn" onclick="submitAuth()">Confirm</button>
       </div>
     </section>
-  `;
+  `);
 }
 
 function renderHome(user) {
-  return `
+  return renderShell(`
     <section class="grid">
       <div class="card">
         <div class="welcome-row">
@@ -278,11 +352,11 @@ function renderHome(user) {
         <p class="small-muted">1. Sign up or log in.<br>2. Log the date and time you helped.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p>
       </div>
     </section>
-  `;
+  `);
 }
 
 function renderLog(user) {
-  return `
+  return renderShell(`
     <section class="card">
       <h2>Log Time</h2>
       <p class="small-muted">Choose a date, start time, and end time. Results update automatically as you type.</p>
@@ -317,7 +391,7 @@ function renderLog(user) {
         `).join("") : `<div class="item small-muted">No logs yet.</div>`}
       </div>
     </section>
-  `;
+  `);
 }
 
 function renderSchedule(user) {
@@ -331,10 +405,7 @@ function renderSchedule(user) {
       kc: log.kc,
       logIndex: index
     })))
-    .sort((a, b) => {
-      if (a.date === b.date) return a.start.localeCompare(b.start);
-      return a.date.localeCompare(b.date);
-    });
+    .sort((a, b) => a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date));
 
   const grouped = {};
   for (const entry of entries) {
@@ -344,7 +415,7 @@ function renderSchedule(user) {
 
   const dates = Object.keys(grouped).sort();
 
-  return `
+  return renderShell(`
     <section class="card">
       <h2>Schedule</h2>
       <p class="small-muted">This shows when everyone is coming to help.</p>
@@ -357,19 +428,17 @@ function renderSchedule(user) {
                 <div class="schedule-name">${escapeHtml(item.name)}</div>
                 <div class="small-muted">${displayTime(item.start)} to ${displayTime(item.end)}</div>
               </div>
-              ${isAdmin() ? `
-                <button class="trash-btn" type="button" onclick="deleteScheduleEntry('${escapeHtml(item.email)}', '${item.logIndex}')">🗑</button>
-              ` : ""}
+              ${isAdmin() ? `<button class="trash-btn" type="button" onclick="deleteScheduleEntry('${escapeHtml(item.email)}', '${item.logIndex}')">🗑</button>` : ""}
             </div>
           `).join("")}
         </div>
       `).join("") : `<div class="item small-muted">No schedule yet. When someone logs time, it will appear here.</div>`}
     </section>
-  `;
+  `);
 }
 
 function renderRedeem(user) {
-  return `
+  return renderShell(`
     <section class="card">
       <h2>Redeem</h2>
       <p class="small-muted">You have ${user.kc.toFixed(1)} KC, worth $${kcToUsd(user.kc)} USD.</p>
@@ -388,11 +457,11 @@ function renderRedeem(user) {
       <div class="footer-space"></div>
       <button class="btn full" onclick="confirmRedeem()">Confirm</button>
     </section>
-  `;
+  `);
 }
 
 function renderVoucher(user) {
-  return `
+  return renderShell(`
     <section class="card">
       <h2>Voucher</h2>
       <p class="small-muted">After confirm, your voucher appears here. Admins can deduct the exact amount used.</p>
@@ -406,11 +475,11 @@ function renderVoucher(user) {
         `).join("")}
       </div>
     </section>
-  `;
+  `);
 }
 
 function renderAccount(user) {
-  return `
+  return renderShell(`
     <section class="card center-card">
       <h2>Account</h2>
       <p class="small-muted">Check your info or update it.</p>
@@ -429,77 +498,107 @@ function renderAccount(user) {
         <button class="btn danger" onclick="logout()">Log Out</button>
       </div>
     </section>
-  `;
+  `);
 }
 
 function renderMembers() {
   const members = data.users.filter(u => !u.admin);
-  return `
+  const admins = data.users.filter(u => u.admin);
+  return renderShell(`
     <section class="card">
       <h2>Members</h2>
-      <p class="small-muted">Click a member to view their vouchers and admin options.</p>
+      <p class="small-muted">Click any member or admin to view their account.</p>
+
       <div class="list">
-        ${members.length ? members.map(user => `
-          <button type="button" class="item redeem-choice ${selectedMemberEmail === user.email ? "active" : ""}" onclick="selectMember('${escapeHtml(user.email)}')">
-            <strong>${escapeHtml(user.name)}</strong>
-            <div class="small-muted">${escapeHtml(user.email)}</div>
-            <div class="small-muted">${user.kc.toFixed(1)} KC</div>
-          </button>
-        `).join("") : `<div class="item small-muted">No Members yet. When someone logs in or signs up, they will be added here.</div>`}
+        ${members.length ? members.map(user => renderMemberButton(user, "Member")).join("") : `<div class="item small-muted">No Members yet.</div>`}
       </div>
+
+      <h3 style="margin-top:20px;">Admins</h3>
+      <div class="list">
+        ${admins.length ? admins.map(user => renderMemberButton(user, "Admin")).join("") : `<div class="item small-muted">No Admins yet.</div>`}
+      </div>
+
       ${selectedMemberEmail ? renderSelectedMember(selectedMemberEmail) : ""}
-      <hr />
-      <h3>Admins</h3>
-      <div class="list">
-        ${data.users.filter(u => u.admin).map(user => `
-          <div class="item">
-            <strong>${escapeHtml(user.name)}${currentUser() && user.email === currentUser().email ? " (You)" : ""}</strong>
-            <div class="small-muted">${escapeHtml(user.email)}</div>
-          </div>
-        `).join("")}
-      </div>
-      <div class="footer-space"></div>
-      <button class="btn" onclick="addAdminEmail()">Add Admin</button>
     </section>
+  `);
+}
+
+function renderMemberButton(user, label) {
+  const p = userPresence(user.email);
+  const visible = !!(p && p.visible);
+  return `
+    <button type="button" class="item redeem-choice ${selectedMemberEmail === user.email ? "active" : ""}" onclick="selectMember('${escapeHtml(user.email)}')">
+      <div class="row space-between" style="align-items:center;">
+        <div>
+          <strong>${escapeHtml(user.name)}</strong>
+          <div class="small-muted">${escapeHtml(user.email)}</div>
+          <div class="small-muted">${label}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:12px;height:12px;border-radius:50%;display:inline-block;background:${visible ? "#2ecc71" : "#ffffff"};border:1px solid #999;"></span>
+        </div>
+      </div>
+      <div class="small-muted" style="margin-top:8px;">
+        ${visible ? "Active now" : formatLastOnline(p && p.lastSeen)}
+      </div>
+    </button>
   `;
 }
 
 function renderSelectedMember(email) {
   const user = data.users.find(u => u.email === email);
   if (!user) return "";
-  const isSelf = currentUser() && currentUser().email.toLowerCase() === user.email.toLowerCase();
-  const canRemoveAdmin = user.admin && user.email.toLowerCase() !== data.adminSeed.email.toLowerCase();
-  const canRemoveMember = !user.admin && !isSelf;
+  if (isOwner(user.email) && currentUser() && !isOwner(currentUser().email)) return `<div class="card" style="margin-top:16px;"><div class="item small-muted">Cannot touch owners account.</div></div>`;
+
   return `
     <div style="margin-top:16px" class="card">
       <div class="member-close"><button class="close-btn" type="button" onclick="closeMember()">×</button></div>
       <h3>${escapeHtml(user.name)}</h3>
       <p class="small-muted">${escapeHtml(user.email)}</p>
+      <p class="small-muted">${user.admin ? "Admin" : "Member"}</p>
       <p class="small-muted">${user.kc.toFixed(1)} KC</p>
-      <h4>Vouchers</h4>
+
+      <h4>Status</h4>
+      <div class="small-muted">${renderStatusLine(user.email)}</div>
+
+      <h4>Actions</h4>
+      <div class="row wrap">
+        <button class="btn secondary" type="button" onclick="makeAdmin('${escapeHtml(user.email)}')">Make admin</button>
+        <button class="btn secondary" type="button" onclick="makeMember('${escapeHtml(user.email)}')">Make member</button>
+        ${user.admin ? `<button class="btn secondary" type="button" onclick="removeAdminForMember('${escapeHtml(user.email)}')">Remove admin</button>` : ""}
+        <button class="btn danger" type="button" onclick="removeMember('${escapeHtml(user.email)}')">Remove member</button>
+      </div>
+
+      <h4 style="margin-top:16px;">Vouchers</h4>
       <div class="list">
-        ${Object.entries(user.vouchers).map(([category, usd]) => `
+        ${Object.entries(user.vouchers || {}).map(([category, usd]) => `
           <button type="button" class="item deduct-choice ${deductCategory === category ? "active" : ""}" onclick="setDeductCategory('${category}')">
             <strong>${category}</strong>
             <div class="small-muted">$${Number(usd).toFixed(2)} available</div>
           </button>
         `).join("")}
       </div>
+
       <label for="deductAmount">Amount to Remove</label>
       <input id="deductAmount" class="plain-amount" type="number" min="0" step="0.01" placeholder="Type the amount of money you want to remove here" />
       <div class="footer-space"></div>
       <div class="row wrap">
         <button class="btn" onclick="deductVoucher('${escapeHtml(user.email)}')">Remove Money</button>
-        <button class="btn secondary ${canRemoveAdmin ? "" : "hidden"}" onclick="removeAdminForMember('${escapeHtml(user.email)}')">Remove Admin</button>
-        <button class="btn danger ${canRemoveMember ? "" : "hidden"}" onclick="removeMember('${escapeHtml(user.email)}')">Remove Member</button>
       </div>
     </div>
   `;
 }
 
+function renderStatusLine(email) {
+  const p = userPresence(email);
+  const visible = !!(p && p.visible);
+  return visible ? "Active now" : formatLastOnline(p && p.lastSeen);
+}
+
 function setAuthMode(mode) {
   authMode = mode;
   currentPage = "auth";
+  setFormError("");
   render();
 }
 
@@ -515,8 +614,14 @@ function togglePassword(id, btn) {
   }
 }
 
+function findUser(email) {
+  return data.users.find(u => u.email.toLowerCase() === String(email).trim().toLowerCase()) || null;
+}
+
 async function submitAuth() {
-  if (!authMode) return alert("Choose Signup or Login first.");
+  setFormError("");
+  if (!authMode) return setFormError("Choose Signup or Login first.");
+
   const name = document.getElementById("authName")?.value.trim() || "";
   const email = document.getElementById("authEmail")?.value.trim().toLowerCase() || "";
   const password = document.getElementById("authPassword")?.value || "";
@@ -524,35 +629,53 @@ async function submitAuth() {
 
   try {
     if (authMode === "signup") {
-      if (!name || !email || !password || !confirm) return alert("Fill out all signup fields.");
-      if (password !== confirm) return alert("Passwords do not match.");
+      if (!name || !email || !password || !confirm) return setFormError("Please fill out all fields.");
+      if (password !== confirm) return setFormError("Passwords do not match. Please try again.");
+
+      const existing = findUser(email);
+      if (existing) return setFormError("Account already created. Please log in instead.");
+
       const user = await api("/api/auth/signup", "POST", { name, email, password, adminSeed: data.adminSeed });
       data.currentUserEmail = user.email;
       currentPage = "home";
       saveData();
+      await loadFromMongo();
+      setPresenceFor(user.email, true);
       render();
       return;
     }
 
     if (authMode === "login") {
-      if (!name || !email || !password) return alert("Enter name, email, and password.");
+      if (!name || !email || !password) return setFormError("Please fill out all fields.");
+
+      const existing = findUser(email);
+      if (!existing) return setFormError("Email not found. Please sign up instead.");
+      if (existing.password !== password) return setFormError("Incorrect email or password. Please change and try again.");
+      if (existing.name.toLowerCase() !== name.toLowerCase()) return setFormError("Incorrect email or password. Please change and try again.");
+
       const user = await api("/api/auth/login", "POST", { name, email, password });
       data.currentUserEmail = user.email;
       currentPage = "home";
       saveData();
+      await loadFromMongo();
+      setPresenceFor(user.email, true);
       render();
     }
   } catch (err) {
-    alert(err.message);
+    setFormError(err.message || "Something went wrong.");
   }
 }
 
 function logout() {
+  const user = currentUser();
+  if (user) setPresenceFor(user.email, false);
   data.currentUserEmail = "";
   saveData();
   currentPage = "auth";
   selectedMemberEmail = null;
   authMode = "signup";
+  setFormError("");
+  setAppMessage("");
   render();
 }
 
@@ -591,26 +714,22 @@ async function saveLog() {
   const date = document.getElementById("logDate")?.value;
   const start = document.getElementById("startTime")?.value;
   const end = document.getElementById("endTime")?.value;
-  if (!date || !start || !end) return alert("Please fill in date, start time, and end time.");
-  if (date < todayISO()) return alert("You cannot pick a past date.");
+  if (!date || !start || !end) return setAppMessage("Please fill in date, start time, and end time.");
+  if (date < todayISO()) return setAppMessage("You cannot pick a past date.");
   const startMinutes = toMinutes(start);
   const endMinutes = toMinutes(end);
-  if (endMinutes <= startMinutes) return alert("End time must be after start time.");
+  if (endMinutes <= startMinutes) return setAppMessage("End time must be after start time.");
   const minutes = endMinutes - startMinutes;
-  if (minutes <= 10) return alert("Time must be more than 10 minutes.");
+  if (minutes <= 10) return setAppMessage("Time must be more than 10 minutes.");
   const kc = roundToHalf(minutes / 60);
-  if (kc < 0.5) return alert("Minimum KC is 0.5.");
   user.kc = Number((user.kc + kc).toFixed(1));
   user.logs.unshift({ date, start, end, kc: kc.toFixed(1) });
   user.history.unshift(`Logged ${kc.toFixed(1)} KC for ${date}`);
-  try {
-    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-    await loadFromMongo();
-    alert(`Logged successfully. You earned ${kc.toFixed(1)} KC.`);
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setPresenceFor(user.email, true);
+  setAppMessage(`Logged successfully. You earned ${kc.toFixed(1)} KC.`);
+  render();
 }
 
 function setRedeemCategory(value) {
@@ -625,20 +744,16 @@ function changeRedeemKC(delta) {
 
 async function confirmRedeem() {
   const user = currentUser();
-  if (user.kc < redeemKC) return alert("Not enough KC.");
+  if (user.kc < redeemKC) return setAppMessage("Not enough KC.");
   const usd = Number((redeemKC * 5).toFixed(2));
   user.kc = Number((user.kc - redeemKC).toFixed(1));
   user.vouchers[redeemCategory] = Number((user.vouchers[redeemCategory] + usd).toFixed(2));
   user.history.unshift(`Redeemed ${redeemKC.toFixed(1)} KC for ${redeemCategory}`);
-  try {
-    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-    await loadFromMongo();
-    alert(`Created ${redeemCategory} voucher for $${usd.toFixed(2)}.`);
-    currentPage = "voucher";
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`Created ${redeemCategory} voucher for $${usd.toFixed(2)}.`);
+  currentPage = "voucher";
+  render();
 }
 
 async function saveAccount() {
@@ -646,34 +761,30 @@ async function saveAccount() {
   const name = document.getElementById("accName").value.trim();
   const email = document.getElementById("accEmail").value.trim().toLowerCase();
   const password = document.getElementById("accPassword").value;
-  if (!name || !email || !password) return alert("All fields are required.");
+  if (!name || !email || !password) return setAppMessage("All fields are required.");
   const oldEmail = user.email;
   user.name = name;
   user.email = email;
   user.password = password;
   data.currentUserEmail = email;
-  try {
-    await api(`/api/app/users/${encodeURIComponent(oldEmail)}`, "PUT", user);
-    await loadFromMongo();
-    alert("Account saved.");
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(oldEmail)}`, "PUT", user);
+  await loadFromMongo();
+  setPresenceFor(email, true);
+  setAppMessage("Account saved.");
+  render();
 }
 
 async function addAdminEmail() {
   const email = prompt("Enter the email to make admin:");
   if (!email) return;
   const clean = email.trim().toLowerCase();
-  const existing = data.users.find(u => u.email.toLowerCase() === clean);
+  const existing = findUser(clean);
   if (existing) {
     existing.admin = true;
     await api(`/api/app/users/${encodeURIComponent(existing.email)}`, "PUT", existing);
   }
-  saveData();
   await loadFromMongo();
-  alert("Admin added.");
+  setAppMessage("Admin added.");
   render();
 }
 
@@ -692,72 +803,103 @@ function setDeductCategory(category) {
   render();
 }
 
-async function deductVoucher(email) {
-  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+function canTouchUser(target) {
+  const me = currentUser();
+  if (!me) return false;
+  if (isOwner(target.email) && !isOwner(me.email)) return false;
+  return true;
+}
+
+async function makeAdmin(email) {
+  const user = findUser(email);
   if (!user) return;
+  if (!canTouchUser(user)) return alert("Cannot touch owners account.");
+  user.admin = true;
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`${user.name} is now an admin.`);
+  render();
+}
+
+async function makeMember(email) {
+  const user = findUser(email);
+  if (!user) return;
+  if (!canTouchUser(user)) return alert("Cannot touch owners account.");
+  user.admin = false;
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`${user.name} is now a member.`);
+  render();
+}
+
+async function deductVoucher(email) {
+  const user = findUser(email);
+  if (!user) return;
+  if (!canTouchUser(user)) return alert("Cannot touch owners account.");
   const amount = parseFloat(document.getElementById("deductAmount").value);
-  if (!amount || amount <= 0) return alert("Enter a valid amount.");
-  if (user.email.toLowerCase() === currentUser().email.toLowerCase()) return alert("Admins cannot deduct from themselves.");
+  if (!amount || amount <= 0) return setAppMessage("Enter a valid amount.");
   const current = Number(user.vouchers[deductCategory] || 0);
   const next = Math.max(0, current - amount);
   user.vouchers[deductCategory] = Number(next.toFixed(2));
-  try {
-    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-    await loadFromMongo();
-    alert(`Removed $${amount.toFixed(2)} from ${user.name}'s ${deductCategory} voucher.`);
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`Removed $${amount.toFixed(2)} from ${user.name}'s ${deductCategory} voucher.`);
+  render();
 }
 
 async function removeAdminForMember(email) {
-  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const user = findUser(email);
   if (!user) return;
-  if (user.email.toLowerCase() === data.adminSeed.email.toLowerCase()) return alert("This admin cannot be removed.");
-  if (user.email.toLowerCase() === currentUser().email.toLowerCase() && user.admin) return alert("Admins cannot remove themselves.");
+  if (!canTouchUser(user)) return alert("Cannot touch owners account.");
+  if (isOwner(user.email)) return alert("Cannot touch owners account.");
   user.admin = false;
-  try {
-    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-    await loadFromMongo();
-    alert(`${user.name} is no longer an admin.`);
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`${user.name} is no longer an admin.`);
+  render();
 }
 
 async function removeMember(email) {
-  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const user = findUser(email);
   if (!user) return;
-  if (user.email.toLowerCase() === data.adminSeed.email.toLowerCase()) return alert("This admin cannot be removed.");
-  if (user.email.toLowerCase() === currentUser().email.toLowerCase()) return alert("Admins cannot remove themselves.");
+  if (!canTouchUser(user)) return alert("Cannot touch owners account.");
+  if (isOwner(user.email)) return alert("Cannot touch owners account.");
   if (!confirm(`Remove ${user.name}?`)) return;
-  try {
-    await fetch(`${API_BASE}/api/app/users/${encodeURIComponent(user.email)}`, { method: "DELETE" });
-    await loadFromMongo();
-    selectedMemberEmail = null;
-    alert("Member removed.");
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await fetch(`${API_BASE}/api/app/users/${encodeURIComponent(user.email)}`, { method: "DELETE" });
+  await loadFromMongo();
+  selectedMemberEmail = null;
+  setAppMessage("Member removed.");
+  render();
 }
 
 async function deleteScheduleEntry(email, logIndex) {
   if (!isAdmin()) return alert("Admins only.");
-  const user = data.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const user = findUser(email);
   if (!user || !user.logs || !user.logs[logIndex]) return;
   if (!confirm("Delete this schedule entry?")) return;
   user.logs.splice(logIndex, 1);
-  try {
-    await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-    await loadFromMongo();
-    render();
-  } catch (err) {
-    alert(err.message);
-  }
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage("Schedule entry deleted.");
+  render();
 }
+
+function onVisibilityChange() {
+  const user = currentUser();
+  if (!user) return;
+  if (document.visibilityState === "visible") {
+    setPresenceFor(user.email, true);
+  } else {
+    setPresenceFor(user.email, false);
+  }
+  render();
+}
+
+document.addEventListener("visibilitychange", onVisibilityChange);
+window.addEventListener("beforeunload", () => {
+  const user = currentUser();
+  if (user) setPresenceFor(user.email, false);
+});
 
 document.addEventListener("click", e => {
   const tab = e.target.closest(".tab");
@@ -785,6 +927,8 @@ window.removeAdminForMember = removeAdminForMember;
 window.removeMember = removeMember;
 window.deleteScheduleEntry = deleteScheduleEntry;
 window.togglePassword = togglePassword;
+window.makeAdmin = makeAdmin;
+window.makeMember = makeMember;
 window.setPage = page => {
   currentPage = page;
   render();

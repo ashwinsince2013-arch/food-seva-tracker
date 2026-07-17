@@ -16,7 +16,7 @@ const defaultData = {
 
 let data = loadData();
 let presence = loadPresence();
-let jobs = []; // new: jobs from backend
+let jobs = []; // jobs from backend
 let currentPage = "auth";
 let redeemCategory = "Food";
 let redeemKC = 1.0;
@@ -97,7 +97,7 @@ function setPresenceFor(email, visible) {
     visible: !!visible,
     lastSeen: nowISO()
   };
-    savePresence();
+  savePresence();
 }
 
 function userPresence(email) {
@@ -173,7 +173,7 @@ function formatWeekdayMDY(isoDate) {
   if (!isoDate) return "";
   const [y, m, d] = isoDate.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  const weekday = dt.toLocaleDateString("en-US", { weekday: "long" });
+  const weekday = dt.toLocaleDateString("en-US", { weekday: "Sunday" ? "long" : "long" });
   return `${weekday}, ${m}/${d}/${String(y).slice(-2)}`;
 }
 
@@ -276,7 +276,6 @@ function render() {
   if (currentPage === "account") content = renderAccount(user);
   if (currentPage === "members") content = renderMembers();
 
-  // Booking success overlay
   if (bookingSuccess) {
     content += `
       <div id="bookingOverlay" style="
@@ -399,7 +398,7 @@ function renderHome(user) {
 }
 
 /**
- * BOOK TIME (new) – uses jobs from backend
+ * BOOK TIME – grouped by date
  */
 function renderBookTime(user) {
   const isUserAdmin = isAdmin();
@@ -414,17 +413,39 @@ function renderBookTime(user) {
       return a.startDate.localeCompare(b.startDate);
     });
 
+  const groupedByDate = {};
+  for (const job of upcomingJobs) {
+    const key = job.startDate;
+    if (!groupedByDate[key]) groupedByDate[key] = [];
+    groupedByDate[key].push(job);
+  }
+  const dates = Object.keys(groupedByDate).sort();
+
   return renderShell(`
     <section class="card">
       <h2>Book Time</h2>
       <p class="small-muted">Pick a job that needs help. Admins can create and delete jobs. Members can apply for a spot.</p>
 
       <h3>Open Jobs</h3>
-      <div class="list">
-        ${upcomingJobs.length ? upcomingJobs.map(renderJobItem).join("") : `
-          <div class="item small-muted">No jobs yet. Admins can create a job using Book a Time.</div>
-        `}
-      </div>
+      ${
+        dates.length
+          ? dates
+              .map(date => {
+                const jobsForDay = groupedByDate[date];
+                return `
+                  <div class="card" style="margin-bottom:12px;">
+                    <div style="font-weight:700;margin-bottom:8px;">
+                      ${formatWeekdayMDY(date)}
+                    </div>
+                    <div class="list">
+                      ${jobsForDay.map(renderJobItem).join("")}
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")
+          : `<div class="item small-muted">No jobs yet. Admins can create a job using Book a Time.</div>`
+      }
 
       ${isUserAdmin ? renderAdminCreateJobSection(user) : ""}
     </section>
@@ -433,11 +454,6 @@ function renderBookTime(user) {
 
 function renderJobItem(job) {
   const spotsLeft = job.spotsTotal - job.spotsTaken;
-  const multiDay = job.startDate !== job.endDate;
-  const dateText = multiDay
-    ? `${formatMDY(job.startDate)} to ${formatMDY(job.endDate)}`
-    : formatMDY(job.startDate);
-
   const user = currentUser();
   const userIsAdmin = !!(user && user.admin);
 
@@ -447,7 +463,6 @@ function renderJobItem(job) {
         <div>
           <strong>${escapeHtml(job.title)}</strong>
           ${job.description ? `<div class="small-muted">${escapeHtml(job.description)}</div>` : ""}
-          <div class="small-muted">Date: ${dateText}</div>
           <div class="small-muted">Time: ${displayTime(job.startTime)} to ${displayTime(job.endTime)}</div>
           <div class="small-muted">${job.spotsTotal} spots – ${Math.max(0, spotsLeft)} spots left</div>
         </div>
@@ -510,7 +525,7 @@ function renderAdminCreateJobSection(user) {
 }
 
 /**
- * SCHEDULE – now built from user.logs (which include jobTitle from bookings)
+ * SCHEDULE
  */
 function renderSchedule(user) {
   const entries = data.users
@@ -982,7 +997,6 @@ function openApplyForJob(jobId) {
 
   const startInput = document.getElementById("applyStartTime");
   const endInput = document.getElementById("applyEndTime");
-  const dateSelect = document.getElementById("applyDate");
 
   function updateApplyPreview() {
     const start = startInput.value;
@@ -1053,7 +1067,6 @@ async function applyForJob(jobId) {
     return;
   }
 
-  // Show KC validations client-side same as server
   const startMinutes = toMinutes(startTime);
   const endMinutes = toMinutes(endTime);
   if (endMinutes <= startMinutes) {
@@ -1077,7 +1090,6 @@ async function applyForJob(jobId) {
       endTime
     });
 
-    // Update local user and jobs
     const updatedUser = result.user;
     const updatedJob = result.job;
 

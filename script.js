@@ -76,16 +76,16 @@ function nowISO() {
   return new Date().toISOString();
 }
 
-function formatLastOnline(iso) {
-  if (!iso) return "Last online: never";
-  const d = new Date(iso);
-  return "Last online: " + d.toLocaleString([], {
-    month: "numeric",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  });
+function ensurePresenceRecord(email) {
+  const key = String(email || "").toLowerCase();
+  if (!key) return;
+  if (!presence[key]) {
+    presence[key] = {
+      visible: false,
+      lastSeen: nowISO()
+    };
+    savePresence();
+  }
 }
 
 function setPresenceFor(email, visible) {
@@ -101,6 +101,18 @@ function setPresenceFor(email, visible) {
 function userPresence(email) {
   const key = String(email || "").toLowerCase();
   return presence[key] || null;
+}
+
+function formatLastOnline(iso) {
+  if (!iso) return "Last online: unknown";
+  const d = new Date(iso);
+  return "Last online: " + d.toLocaleString([], {
+    month: "numeric",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 function setAppMessage(text = "") {
@@ -195,6 +207,7 @@ async function loadFromMongo() {
     const users = await api("/api/app/users");
     data.users = users;
     saveData();
+    data.users.forEach(u => ensurePresenceRecord(u.email));
   } catch (err) {
     console.error(err);
   }
@@ -548,7 +561,24 @@ function renderMemberButton(user, label) {
 function renderSelectedMember(email) {
   const user = data.users.find(u => u.email === email);
   if (!user) return "";
-  if (isOwner(user.email) && currentUser() && !isOwner(currentUser().email)) return `<div class="card" style="margin-top:16px;"><div class="item small-muted">Cannot touch owners account.</div></div>`;
+  if (isOwner(user.email) && currentUser() && !isOwner(currentUser().email)) {
+    return `<div class="card" style="margin-top:16px;"><div class="item small-muted">Cannot touch owners account.</div></div>`;
+  }
+
+  const p = userPresence(user.email);
+  const visible = !!(p && p.visible);
+
+  // Decide which action buttons to show
+  const isUserAdmin = !!user.admin;
+  const actionButtons = isUserAdmin
+    ? `
+        <button class="btn secondary" type="button" onclick="makeMember('${escapeHtml(user.email)}')">Make member</button>
+        <button class="btn danger" type="button" onclick="removeMember('${escapeHtml(user.email)}')">Remove member</button>
+      `
+    : `
+        <button class="btn secondary" type="button" onclick="makeAdmin('${escapeHtml(user.email)}')">Make admin</button>
+        <button class="btn danger" type="button" onclick="removeMember('${escapeHtml(user.email)}')">Remove member</button>
+      `;
 
   return `
     <div style="margin-top:16px" class="card">
@@ -559,14 +589,11 @@ function renderSelectedMember(email) {
       <p class="small-muted">${user.kc.toFixed(1)} KC</p>
 
       <h4>Status</h4>
-      <div class="small-muted">${renderStatusLine(user.email)}</div>
+      <div class="small-muted">${visible ? "Active now" : formatLastOnline(p && p.lastSeen)}</div>
 
       <h4>Actions</h4>
       <div class="row wrap">
-        <button class="btn secondary" type="button" onclick="makeAdmin('${escapeHtml(user.email)}')">Make admin</button>
-        <button class="btn secondary" type="button" onclick="makeMember('${escapeHtml(user.email)}')">Make member</button>
-        ${user.admin ? `<button class="btn secondary" type="button" onclick="removeAdminForMember('${escapeHtml(user.email)}')">Remove admin</button>` : ""}
-        <button class="btn danger" type="button" onclick="removeMember('${escapeHtml(user.email)}')">Remove member</button>
+        ${actionButtons}
       </div>
 
       <h4 style="margin-top:16px;">Vouchers</h4>
@@ -587,12 +614,6 @@ function renderSelectedMember(email) {
       </div>
     </div>
   `;
-}
-
-function renderStatusLine(email) {
-  const p = userPresence(email);
-  const visible = !!(p && p.visible);
-  return visible ? "Active now" : formatLastOnline(p && p.lastSeen);
 }
 
 function setAuthMode(mode) {

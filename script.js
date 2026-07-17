@@ -219,6 +219,7 @@ function updateTabsVisibility() {
   if (!tabs) return;
   tabs.classList.toggle("hidden", !user);
   document.querySelectorAll(".tab").forEach(btn => {
+    // NOTE: the tab button in HTML should now have data-page="log" but label "Book Time"
     btn.classList.toggle("active", btn.dataset.page === currentPage);
     if (btn.classList.contains("admin-only")) btn.classList.toggle("hidden", !isAdmin());
   });
@@ -257,6 +258,7 @@ function render() {
   if (currentPage === "members" && !isAdmin()) currentPage = "home";
 
   if (currentPage === "home") app.innerHTML = renderHome(user);
+  // still using 'log' page internally, but you can label the tab "Book Time" in HTML
   if (currentPage === "log") app.innerHTML = renderLog(user);
   if (currentPage === "schedule") app.innerHTML = renderSchedule(user);
   if (currentPage === "redeem") app.innerHTML = renderRedeem(user);
@@ -362,17 +364,19 @@ function renderHome(user) {
       </div>
       <div class="card">
         <h3>How It Works</h3>
-        <p class="small-muted">1. Sign up or log in.<br>2. Log the date and time you helped.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p>
+        <p class="small-muted">1. Sign up or log in.<br>2. Book a time to help.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p>
       </div>
     </section>
   `);
 }
 
+// This is still the old log-time UI. In Phase 2, we’ll replace this
+// with the new Book Time slot system.
 function renderLog(user) {
   return renderShell(`
     <section class="card">
-      <h2>Log Time</h2>
-      <p class="small-muted">Choose a date, start time, and end time. Results update automatically as you type.</p>
+      <h2>Book Time</h2>
+      <p class="small-muted">For now this works like logging time. In the next update, admins will create slots for you to book.</p>
       <div class="row wrap">
         <div style="flex:1;min-width:220px"><label for="logDate">Date</label><input id="logDate" type="date" min="${todayISO()}" oninput="updateLogPreview()" /></div>
         <div style="flex:1;min-width:220px"><label for="startTime">Start Time</label><input id="startTime" type="time" oninput="updateLogPreview()" /></div>
@@ -391,7 +395,7 @@ function renderLog(user) {
           </div>
         </div>
       </div>
-      <button class="btn" onclick="saveLog()">Log Time</button>
+      <button class="btn" onclick="saveLog()">Book / Log Time</button>
       <div class="footer-space"></div>
       <h3>Recent Logs</h3>
       <div class="list">
@@ -445,7 +449,7 @@ function renderSchedule(user) {
             </div>
           `).join("")}
         </div>
-      `).join("") : `<div class="item small-muted">No schedule yet. When someone logs time, it will appear here.</div>`}
+      `).join("") : `<div class="item small-muted">No schedule yet. When someone books/logs time, it will appear here.</div>`}
     </section>
   `);
 }
@@ -539,11 +543,13 @@ function renderMembers() {
 function renderMemberButton(user, label) {
   const p = userPresence(user.email);
   const visible = !!(p && p.visible);
+  const isOwnerUser = isOwner(user.email);
+  const crown = isOwnerUser ? " 👑" : "";
   return `
     <button type="button" class="item redeem-choice ${selectedMemberEmail === user.email ? "active" : ""}" onclick="selectMember('${escapeHtml(user.email)}')">
       <div class="row space-between" style="align-items:center;">
         <div>
-          <strong>${escapeHtml(user.name)}</strong>
+          <strong>${escapeHtml(user.name)}${crown}</strong>
           <div class="small-muted">${escapeHtml(user.email)}</div>
           <div class="small-muted">${label}</div>
         </div>
@@ -561,15 +567,28 @@ function renderMemberButton(user, label) {
 function renderSelectedMember(email) {
   const user = data.users.find(u => u.email === email);
   if (!user) return "";
-  if (isOwner(user.email) && currentUser() && !isOwner(currentUser().email)) {
-    return `<div class="card" style="margin-top:16px;"><div class="item small-muted">Cannot touch owners account.</div></div>`;
+
+  const me = currentUser();
+
+  // If this is the owner and the current user is not the owner:
+  // show a red alert and no actions.
+  if (isOwner(user.email) && (!me || !isOwner(me.email))) {
+    return `
+      <div style="margin-top:16px" class="card">
+        <div class="alert-danger" style="color:#c0392b;font-weight:700;">
+          Cannot touch owners account.
+        </div>
+      </div>
+    `;
   }
 
   const p = userPresence(user.email);
   const visible = !!(p && p.visible);
+  const isUserAdmin = !!user.admin;
+  const isUserOwner = isOwner(user.email);
+  const crown = isUserOwner ? " 👑" : "";
 
   // Decide which action buttons to show
-  const isUserAdmin = !!user.admin;
   const actionButtons = isUserAdmin
     ? `
         <button class="btn secondary" type="button" onclick="makeMember('${escapeHtml(user.email)}')">Make member</button>
@@ -583,7 +602,7 @@ function renderSelectedMember(email) {
   return `
     <div style="margin-top:16px" class="card">
       <div class="member-close"><button class="close-btn" type="button" onclick="closeMember()">×</button></div>
-      <h3>${escapeHtml(user.name)}</h3>
+      <h3>${escapeHtml(user.name)}${crown}</h3>
       <p class="small-muted">${escapeHtml(user.email)}</p>
       <p class="small-muted">${user.admin ? "Admin" : "Member"}</p>
       <p class="small-muted">${user.kc.toFixed(1)} KC</p>
@@ -593,7 +612,7 @@ function renderSelectedMember(email) {
 
       <h4>Actions</h4>
       <div class="row wrap">
-        ${actionButtons}
+        ${isUserOwner ? "" : actionButtons}
       </div>
 
       <h4 style="margin-top:16px;">Vouchers</h4>

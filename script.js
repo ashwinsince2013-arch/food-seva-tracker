@@ -16,7 +16,7 @@ const defaultData = {
 
 let data = loadData();
 let presence = loadPresence();
-let jobs = []; // jobs from backend
+let jobs = [];
 let currentPage = "auth";
 let redeemCategory = "Food";
 let redeemKC = 1.0;
@@ -24,7 +24,7 @@ let selectedMemberEmail = null;
 let deductCategory = "Food";
 let authMode = "signup";
 let appMessage = "";
-let bookingSuccess = false; // overlay flag
+let bookingSuccess = false;
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -173,7 +173,7 @@ function formatWeekdayMDY(isoDate) {
   if (!isoDate) return "";
   const [y, m, d] = isoDate.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  const weekday = dt.toLocaleDateString("en-US", { weekday: "Sunday" ? "long" : "long" });
+  const weekday = dt.toLocaleDateString("en-US", { weekday: "long" });
   return `${weekday}, ${m}/${d}/${String(y).slice(-2)}`;
 }
 
@@ -255,6 +255,7 @@ function setupLogo() {
 function render() {
   const app = document.getElementById("app");
   const user = currentUser();
+  if (!app) return;
   updateTabsVisibility();
   setAppMessage(appMessage);
 
@@ -371,7 +372,7 @@ function renderHome(user) {
         <div class="welcome-row">
           <div class="welcome-text">
             <h1>Welcome, ${escapeHtml(user.name)}</h1>
-            <p>Food Seva Tracker is a simple Karma Credit system for seva work at Chinmaya Mission. You book a time to help, earn KC based on how long you worked, and redeem those points for Food, Books, or Karma. Karma means donation, so the app keeps your rewards and donation options in one place. One KC equals five US dollars in redeem value.</p>
+            <p>Food Seva Tracker is a simple Karma Credit system for seva work at Chinmaya Mission. You book a time to help, earn KC based on how long you worked, and redeem those points for Food, Books, or Karma. One KC equals five US dollars in redeem value.</p>
           </div>
           <div class="kc-box">
             <div class="kc-number">${user.kc.toFixed(1)} KC</div>
@@ -380,7 +381,7 @@ function renderHome(user) {
         </div>
         <hr />
         <h3>What KC Means</h3>
-        <p class="small-muted">KC stands for Karma Credit. If you work from 9:00 AM to 10:30 AM, that is 1 hour 30 minutes, so you earn 1.5 KC. Logs under or equal to 10 minutes are not counted, and time is rounded to the nearest 0.5 KC.</p>
+        <p class="small-muted">KC stands for Karma Credit. Logs under or equal to 10 minutes are not counted, and time is rounded to the nearest 0.5 KC.</p>
         <hr />
         <h3>Redeem Categories</h3>
         <div class="list">
@@ -391,7 +392,7 @@ function renderHome(user) {
       </div>
       <div class="card">
         <h3>How It Works</h3>
-        <p class="small-muted">1. Sign up or log in.<br>2. Go to Book Time to pick a job slot.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher and Schedule tabs to see your bookings and rewards.</p>
+        <p class="small-muted">1. Sign up or log in.<br>2. Go to Book Time to pick a job slot.<br>3. Earn KC from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use Voucher and Schedule to see bookings and rewards.</p>
       </div>
     </section>
   `);
@@ -581,9 +582,9 @@ function renderRedeem(user) {
       <h2>Redeem</h2>
       <p class="small-muted">You have ${user.kc.toFixed(1)} KC, worth $${kcToUsd(user.kc)} USD.</p>
       <div class="list">
-        <button class="item redeem-choice ${redeemCategory === "Food" ? "active" : ""}" onclick="setRedeemCategory('Food')" type="button"><strong><span class="redeem-icon">🍲</span>Food</strong><div class="small-muted">Use your KC to enjoy meals at Chinmaya Mission.</div></button>
-        <button class="item redeem-choice ${redeemCategory === "Books" ? "active" : ""}" onclick="setRedeemCategory('Books')" type="button"><strong><span class="redeem-icon">📚</span>Books</strong><div class="small-muted">Use your KC to purchase spiritual and educational books.</div></button>
-        <button class="item redeem-choice ${redeemCategory === "Karma" ? "active" : ""}" onclick="setRedeemCategory('Karma')" type="button"><strong><span class="redeem-icon">🙏</span>Karma (Donation)</strong><div class="small-muted">Use your KC to make a donation and serve more.</div></button>
+        <button class="item redeem-choice ${redeemCategory === "Food" ? "active" : ""}" onclick="setRedeemCategory('Food')" type="button"><strong><span class="redeem-icon">🍲</span>Food</strong><div class="small-muted">Use your KC to enjoy meals.</div></button>
+        <button class="item redeem-choice ${redeemCategory === "Books" ? "active" : ""}" onclick="setRedeemCategory('Books')" type="button"><strong><span class="redeem-icon">📚</span>Books</strong><div class="small-muted">Use your KC to purchase books.</div></button>
+        <button class="item redeem-choice ${redeemCategory === "Karma" ? "active" : ""}" onclick="setRedeemCategory('Karma')" type="button"><strong><span class="redeem-icon">🙏</span>Karma (Donation)</strong><div class="small-muted">Use your KC to make a donation.</div></button>
       </div>
       <hr />
       <h3>Choose Amount</h3>
@@ -1260,6 +1261,33 @@ async function deleteScheduleEntry(email, logIndex) {
   render();
 }
 
+function setRedeemCategory(value) {
+  redeemCategory = value;
+  render();
+}
+
+function changeRedeemKC(delta) {
+  redeemKC = Math.max(0.5, Math.min(10, Number((redeemKC + delta).toFixed(1))));
+  render();
+}
+
+async function confirmRedeem() {
+  const user = currentUser();
+  if (user.kc < redeemKC) return setAppMessage("Not enough KC.");
+  const usd = Number((redeemKC * 5).toFixed(2));
+  user.kc = Number((user.kc - redeemKC).toFixed(1));
+  user.vouchers[redeemCategory] = Number((user.vouchers[redeemCategory] + usd).toFixed(2));
+  user.history.unshift(`Redeemed ${redeemKC.toFixed(1)} KC for ${redeemCategory}`);
+  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
+  await loadFromMongo();
+  setAppMessage(`Created ${redeemCategory} voucher for $${usd.toFixed(2)}.`);
+  currentPage = "voucher";
+  render();
+}
+
+/**
+ * Presence + events
+ */
 function onVisibilityChange() {
   const user = currentUser();
   if (!user) return;
@@ -1285,6 +1313,9 @@ document.addEventListener("click", e => {
   render();
 });
 
+/**
+ * Expose functions to HTML
+ */
 window.setAuthMode = setAuthMode;
 window.submitAuth = submitAuth;
 window.logout = logout;
@@ -1313,6 +1344,9 @@ window.setPage = page => {
   render();
 };
 
+/**
+ * Init
+ */
 async function initApp() {
   try {
     await Promise.all([loadFromMongo(), loadJobs()]);
@@ -1320,7 +1354,6 @@ async function initApp() {
     console.error(e);
   }
 
-  // If no one is logged in, show auth. If someone is logged in, go home.
   if (!currentUser()) {
     currentPage = "auth";
     authMode = "signup";

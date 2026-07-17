@@ -1313,10 +1313,22 @@ window.setPage = page => {
   render();
 };
 
-Promise.all([loadFromMongo(), loadJobs()]).then(() => {
-  currentPage = "auth";
-  authMode = "signup";
-  data.currentUserEmail = "";
-  saveData();
+async function initApp() {
+  try {
+    await Promise.all([loadFromMongo(), loadJobs()]);
+  } catch (e) {
+    console.error(e);
+  }
+
+  // If no one is logged in, show auth. If someone is logged in, go home.
+  if (!currentUser()) {
+    currentPage = "auth";
+    authMode = "signup";
+  } else {
+    currentPage = "home";
+  }
+
   render();
-});
+}
+
+document.addEventListener("DOMContentLoaded", initApp);

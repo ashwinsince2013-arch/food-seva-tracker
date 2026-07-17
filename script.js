@@ -16,6 +16,7 @@ const defaultData = {
 
 let data = loadData();
 let presence = loadPresence();
+let jobs = []; // new: jobs from backend
 let currentPage = "auth";
 let redeemCategory = "Food";
 let redeemKC = 1.0;
@@ -23,6 +24,7 @@ let selectedMemberEmail = null;
 let deductCategory = "Food";
 let authMode = "signup";
 let appMessage = "";
+let bookingSuccess = false; // overlay flag
 
 function loadData() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -95,7 +97,7 @@ function setPresenceFor(email, visible) {
     visible: !!visible,
     lastSeen: nowISO()
   };
-  savePresence();
+    savePresence();
 }
 
 function userPresence(email) {
@@ -131,7 +133,7 @@ function kcToUsd(kc) {
 }
 
 function toMinutes(time) {
-  const [hh, mm] = time.split(":").map(Number);
+  const [hh, mm] = String(time || "").split(":").map(Number);
   return hh * 60 + mm;
 }
 
@@ -213,13 +215,21 @@ async function loadFromMongo() {
   }
 }
 
+async function loadJobs() {
+  try {
+    jobs = await api("/api/jobs");
+  } catch (err) {
+    console.error(err);
+    jobs = [];
+  }
+}
+
 function updateTabsVisibility() {
   const tabs = document.getElementById("tabs");
   const user = currentUser();
   if (!tabs) return;
   tabs.classList.toggle("hidden", !user);
   document.querySelectorAll(".tab").forEach(btn => {
-    // NOTE: the tab button in HTML should now have data-page="log" but label "Book Time"
     btn.classList.toggle("active", btn.dataset.page === currentPage);
     if (btn.classList.contains("admin-only")) btn.classList.toggle("hidden", !isAdmin());
   });
@@ -257,15 +267,33 @@ function render() {
 
   if (currentPage === "members" && !isAdmin()) currentPage = "home";
 
-  if (currentPage === "home") app.innerHTML = renderHome(user);
-  // still using 'log' page internally, but you can label the tab "Book Time" in HTML
-  if (currentPage === "log") app.innerHTML = renderLog(user);
-  if (currentPage === "schedule") app.innerHTML = renderSchedule(user);
-  if (currentPage === "redeem") app.innerHTML = renderRedeem(user);
-  if (currentPage === "voucher") app.innerHTML = renderVoucher(user);
-  if (currentPage === "account") app.innerHTML = renderAccount(user);
-  if (currentPage === "members") app.innerHTML = renderMembers();
+  let content = "";
+  if (currentPage === "home") content = renderHome(user);
+  if (currentPage === "log") content = renderBookTime(user);
+  if (currentPage === "schedule") content = renderSchedule(user);
+  if (currentPage === "redeem") content = renderRedeem(user);
+  if (currentPage === "voucher") content = renderVoucher(user);
+  if (currentPage === "account") content = renderAccount(user);
+  if (currentPage === "members") content = renderMembers();
 
+  // Booking success overlay
+  if (bookingSuccess) {
+    content += `
+      <div id="bookingOverlay" style="
+        position:fixed;inset:0;z-index:9999;
+        background:#1e272e;
+        display:flex;align-items:center;justify-content:center;
+        color:#fff;text-align:center;padding:24px;
+      ">
+        <div>
+          <div style="font-size:32px;font-weight:800;margin-bottom:12px;">Congratulations on booking a time!</div>
+          <div style="font-size:48px;line-height:1.2;">🎉🎊🎉🎊🎉🎊</div>
+        </div>
+      </div>
+    `;
+  }
+
+  app.innerHTML = content;
   setupLogo();
 }
 
@@ -344,7 +372,7 @@ function renderHome(user) {
         <div class="welcome-row">
           <div class="welcome-text">
             <h1>Welcome, ${escapeHtml(user.name)}</h1>
-            <p>Food Seva Tracker is a simple Karma Credit system for seva work at Chinmaya Mission. You log the time you helped, earn KC based on how long you worked, and redeem those points for Food, Books, or Karma. Karma means donation, so the app keeps your rewards and donation options in one place. One KC equals five US dollars in redeem value.</p>
+            <p>Food Seva Tracker is a simple Karma Credit system for seva work at Chinmaya Mission. You book a time to help, earn KC based on how long you worked, and redeem those points for Food, Books, or Karma. Karma means donation, so the app keeps your rewards and donation options in one place. One KC equals five US dollars in redeem value.</p>
           </div>
           <div class="kc-box">
             <div class="kc-number">${user.kc.toFixed(1)} KC</div>
@@ -364,59 +392,133 @@ function renderHome(user) {
       </div>
       <div class="card">
         <h3>How It Works</h3>
-        <p class="small-muted">1. Sign up or log in.<br>2. Book a time to help.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher tab to see what you have available.</p>
+        <p class="small-muted">1. Sign up or log in.<br>2. Go to Book Time to pick a job slot.<br>3. Earn KC automatically from the time you worked.<br>4. Redeem KC for Food, Books, or Karma.<br>5. Use the Voucher and Schedule tabs to see your bookings and rewards.</p>
       </div>
     </section>
   `);
 }
 
-// This is still the old log-time UI. In Phase 2, we’ll replace this
-// with the new Book Time slot system.
-function renderLog(user) {
+/**
+ * BOOK TIME (new) – uses jobs from backend
+ */
+function renderBookTime(user) {
+  const isUserAdmin = isAdmin();
+  const today = todayISO();
+
+  const upcomingJobs = jobs
+    .filter(job => job.endDate >= today)
+    .sort((a, b) => {
+      if (a.startDate === b.startDate) {
+        return a.startTime.localeCompare(b.startTime);
+      }
+      return a.startDate.localeCompare(b.startDate);
+    });
+
   return renderShell(`
     <section class="card">
       <h2>Book Time</h2>
-      <p class="small-muted">For now this works like logging time. In the next update, admins will create slots for you to book.</p>
-      <div class="row wrap">
-        <div style="flex:1;min-width:220px"><label for="logDate">Date</label><input id="logDate" type="date" min="${todayISO()}" oninput="updateLogPreview()" /></div>
-        <div style="flex:1;min-width:220px"><label for="startTime">Start Time</label><input id="startTime" type="time" oninput="updateLogPreview()" /></div>
-        <div style="flex:1;min-width:220px"><label for="endTime">End Time</label><input id="endTime" type="time" oninput="updateLogPreview()" /></div>
-      </div>
-      <div class="footer-space"></div>
-      <div class="card" style="background:#fbfdff;border-style:dashed;">
-        <div class="row space-between">
-          <div>
-            <div class="small-muted">Total Time</div>
-            <div id="previewDuration" style="font-weight:800;">0 min</div>
-          </div>
-          <div style="text-align:right">
-            <div class="small-muted">KC Earned</div>
-            <div id="previewKC" style="font-weight:800;">0.0 KC</div>
-          </div>
-        </div>
-      </div>
-      <button class="btn" onclick="saveLog()">Book / Log Time</button>
-      <div class="footer-space"></div>
-      <h3>Recent Logs</h3>
+      <p class="small-muted">Pick a job that needs help. Admins can create and delete jobs. Members can apply for a spot.</p>
+
+      <h3>Open Jobs</h3>
       <div class="list">
-        ${user.logs.length ? user.logs.map(log => `
-          <div class="item">
-            <strong>${formatMDY(log.date)}</strong>
-            <div class="small-muted">${displayTime(log.start)} - ${displayTime(log.end)}</div>
-            <div class="small-muted">${log.kc} KC earned</div>
-          </div>
-        `).join("") : `<div class="item small-muted">No logs yet.</div>`}
+        ${upcomingJobs.length ? upcomingJobs.map(renderJobItem).join("") : `
+          <div class="item small-muted">No jobs yet. Admins can create a job using Book a Time.</div>
+        `}
       </div>
+
+      ${isUserAdmin ? renderAdminCreateJobSection(user) : ""}
     </section>
   `);
 }
 
+function renderJobItem(job) {
+  const spotsLeft = job.spotsTotal - job.spotsTaken;
+  const multiDay = job.startDate !== job.endDate;
+  const dateText = multiDay
+    ? `${formatMDY(job.startDate)} to ${formatMDY(job.endDate)}`
+    : formatMDY(job.startDate);
+
+  const user = currentUser();
+  const userIsAdmin = !!(user && user.admin);
+
+  return `
+    <div class="item job-item">
+      <div class="row space-between" style="align-items:flex-start;gap:8px;">
+        <div>
+          <strong>${escapeHtml(job.title)}</strong>
+          ${job.description ? `<div class="small-muted">${escapeHtml(job.description)}</div>` : ""}
+          <div class="small-muted">Date: ${dateText}</div>
+          <div class="small-muted">Time: ${displayTime(job.startTime)} to ${displayTime(job.endTime)}</div>
+          <div class="small-muted">${job.spotsTotal} spots – ${Math.max(0, spotsLeft)} spots left</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          ${spotsLeft <= 0 ? `
+            <div class="badge badge-gray">No spots left</div>
+          ` : `
+            <button class="btn small" type="button" onclick="openApplyForJob('${job._id}')">Apply for spot</button>
+          `}
+          ${userIsAdmin ? `
+            <button class="trash-btn" type="button" onclick="deleteJob('${job._id}')">🗑</button>
+          ` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAdminCreateJobSection(user) {
+  return `
+    <div class="card" style="margin-top:16px;background:#f0f7ff;border:1px solid #c7defc;">
+      <h3>Book a time (Create job)</h3>
+      <p class="small-muted">Create a job slot members can book. Set the dates, times, and how many people you need.</p>
+
+      <label for="jobTitle">What do you need help with?</label>
+      <input id="jobTitle" type="text" placeholder="Wash dishes, serve food, etc." />
+
+      <label for="jobDescription">Description (optional)</label>
+      <input id="jobDescription" type="text" placeholder="Extra details for this job (optional)" />
+
+      <div class="row wrap">
+        <div style="flex:1;min-width:180px;">
+          <label for="jobStartDate">Start date</label>
+          <input id="jobStartDate" type="date" min="${todayISO()}" />
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <label for="jobEndDate">End date</label>
+          <input id="jobEndDate" type="date" min="${todayISO()}" />
+        </div>
+      </div>
+
+      <div class="row wrap">
+        <div style="flex:1;min-width:180px;">
+          <label for="jobStartTime">Start time</label>
+          <input id="jobStartTime" type="time" />
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <label for="jobEndTime">End time</label>
+          <input id="jobEndTime" type="time" />
+        </div>
+      </div>
+
+      <label for="jobSpots">How many people do you need?</label>
+      <input id="jobSpots" type="number" min="1" step="1" placeholder="Number of spots" />
+
+      <div class="footer-space"></div>
+      <button class="btn" type="button" onclick="createJob()">Create job</button>
+    </div>
+  `;
+}
+
+/**
+ * SCHEDULE – now built from user.logs (which include jobTitle from bookings)
+ */
 function renderSchedule(user) {
   const entries = data.users
     .flatMap(u => (u.logs || []).map((log, index) => ({
       date: log.date,
       name: u.name,
       email: u.email,
+      jobTitle: log.jobTitle || "",
       start: log.start,
       end: log.end,
       kc: log.kc,
@@ -435,7 +537,7 @@ function renderSchedule(user) {
   return renderShell(`
     <section class="card">
       <h2>Schedule</h2>
-      <p class="small-muted">This shows when everyone is coming to help.</p>
+      <p class="small-muted">This shows who is coming, what they are doing, and when.</p>
       ${dates.length ? dates.map(date => `
         <div class="card schedule-card">
           <div class="schedule-date">${formatWeekdayMDY(date)}</div>
@@ -443,13 +545,17 @@ function renderSchedule(user) {
             <div class="schedule-entry">
               <div class="schedule-main">
                 <div class="schedule-name">${escapeHtml(item.name)}</div>
-                <div class="small-muted">${displayTime(item.start)} to ${displayTime(item.end)}</div>
+                <div class="small-muted">
+                  ${item.jobTitle ? `${escapeHtml(item.jobTitle)} • ` : ""}
+                  ${displayTime(item.start)} to ${displayTime(item.end)}
+                </div>
+                <div class="small-muted">${item.kc} KC</div>
               </div>
               ${isAdmin() ? `<button class="trash-btn" type="button" onclick="deleteScheduleEntry('${escapeHtml(item.email)}', '${item.logIndex}')">🗑</button>` : ""}
             </div>
           `).join("")}
         </div>
-      `).join("") : `<div class="item small-muted">No schedule yet. When someone books/logs time, it will appear here.</div>`}
+      `).join("") : `<div class="item small-muted">No schedule yet. When someone books time, it will appear here.</div>`}
     </section>
   `);
 }
@@ -570,8 +676,6 @@ function renderSelectedMember(email) {
 
   const me = currentUser();
 
-  // If this is the owner and the current user is not the owner:
-  // show a red alert and no actions.
   if (isOwner(user.email) && (!me || !isOwner(me.email))) {
     return `
       <div style="margin-top:16px" class="card">
@@ -588,7 +692,6 @@ function renderSelectedMember(email) {
   const isUserOwner = isOwner(user.email);
   const crown = isUserOwner ? " 👑" : "";
 
-  // Decide which action buttons to show
   const actionButtons = isUserAdmin
     ? `
         <button class="btn secondary" type="button" onclick="makeMember('${escapeHtml(user.email)}')">Make member</button>
@@ -635,6 +738,9 @@ function renderSelectedMember(email) {
   `;
 }
 
+/**
+ * AUTH + ACCOUNT
+ */
 function setAuthMode(mode) {
   authMode = mode;
   currentPage = "auth";
@@ -680,6 +786,7 @@ async function submitAuth() {
       currentPage = "home";
       saveData();
       await loadFromMongo();
+      await loadJobs();
       setPresenceFor(user.email, true);
       render();
       return;
@@ -698,6 +805,7 @@ async function submitAuth() {
       currentPage = "home";
       saveData();
       await loadFromMongo();
+      await loadJobs();
       setPresenceFor(user.email, true);
       render();
     }
@@ -719,83 +827,6 @@ function logout() {
   render();
 }
 
-function updateLogPreview() {
-  const date = document.getElementById("logDate")?.value;
-  const start = document.getElementById("startTime")?.value;
-  const end = document.getElementById("endTime")?.value;
-  const durationEl = document.getElementById("previewDuration");
-  const kcEl = document.getElementById("previewKC");
-  if (!durationEl || !kcEl) return;
-  if (!date || !start || !end) {
-    durationEl.textContent = "0 min";
-    kcEl.textContent = "0.0 KC";
-    return;
-  }
-  if (date < todayISO()) {
-    durationEl.textContent = "Invalid date";
-    kcEl.textContent = "0.0 KC";
-    return;
-  }
-  const startMinutes = toMinutes(start);
-  const endMinutes = toMinutes(end);
-  if (endMinutes <= startMinutes) {
-    durationEl.textContent = "Invalid time";
-    kcEl.textContent = "0.0 KC";
-    return;
-  }
-  const minutes = endMinutes - startMinutes;
-  const kc = roundToHalf(minutes / 60);
-  durationEl.textContent = `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
-  kcEl.textContent = `${kc.toFixed(1)} KC`;
-}
-
-async function saveLog() {
-  const user = currentUser();
-  const date = document.getElementById("logDate")?.value;
-  const start = document.getElementById("startTime")?.value;
-  const end = document.getElementById("endTime")?.value;
-  if (!date || !start || !end) return setAppMessage("Please fill in date, start time, and end time.");
-  if (date < todayISO()) return setAppMessage("You cannot pick a past date.");
-  const startMinutes = toMinutes(start);
-  const endMinutes = toMinutes(end);
-  if (endMinutes <= startMinutes) return setAppMessage("End time must be after start time.");
-  const minutes = endMinutes - startMinutes;
-  if (minutes <= 10) return setAppMessage("Time must be more than 10 minutes.");
-  const kc = roundToHalf(minutes / 60);
-  user.kc = Number((user.kc + kc).toFixed(1));
-  user.logs.unshift({ date, start, end, kc: kc.toFixed(1) });
-  user.history.unshift(`Logged ${kc.toFixed(1)} KC for ${date}`);
-  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-  await loadFromMongo();
-  setPresenceFor(user.email, true);
-  setAppMessage(`Logged successfully. You earned ${kc.toFixed(1)} KC.`);
-  render();
-}
-
-function setRedeemCategory(value) {
-  redeemCategory = value;
-  render();
-}
-
-function changeRedeemKC(delta) {
-  redeemKC = Math.max(0.5, Math.min(10, Number((redeemKC + delta).toFixed(1))));
-  render();
-}
-
-async function confirmRedeem() {
-  const user = currentUser();
-  if (user.kc < redeemKC) return setAppMessage("Not enough KC.");
-  const usd = Number((redeemKC * 5).toFixed(2));
-  user.kc = Number((user.kc - redeemKC).toFixed(1));
-  user.vouchers[redeemCategory] = Number((user.vouchers[redeemCategory] + usd).toFixed(2));
-  user.history.unshift(`Redeemed ${redeemKC.toFixed(1)} KC for ${redeemCategory}`);
-  await api(`/api/app/users/${encodeURIComponent(user.email)}`, "PUT", user);
-  await loadFromMongo();
-  setAppMessage(`Created ${redeemCategory} voucher for $${usd.toFixed(2)}.`);
-  currentPage = "voucher";
-  render();
-}
-
 async function saveAccount() {
   const user = currentUser();
   const name = document.getElementById("accName").value.trim();
@@ -809,11 +840,304 @@ async function saveAccount() {
   data.currentUserEmail = email;
   await api(`/api/app/users/${encodeURIComponent(oldEmail)}`, "PUT", user);
   await loadFromMongo();
+  await loadJobs();
   setPresenceFor(email, true);
   setAppMessage("Account saved.");
   render();
 }
 
+/**
+ * BOOK TIME helpers
+ */
+async function createJob() {
+  const user = currentUser();
+  if (!user || !user.admin) {
+    setAppMessage("Only admins can create jobs.");
+    return;
+  }
+
+  const title = document.getElementById("jobTitle")?.value.trim() || "";
+  const description = document.getElementById("jobDescription")?.value.trim() || "";
+  const startDate = document.getElementById("jobStartDate")?.value || "";
+  const endDate = document.getElementById("jobEndDate")?.value || "";
+  const startTime = document.getElementById("jobStartTime")?.value || "";
+  const endTime = document.getElementById("jobEndTime")?.value || "";
+  const spotsStr = document.getElementById("jobSpots")?.value || "";
+
+  if (!title || !startDate || !endDate || !startTime || !endTime || !spotsStr) {
+    setAppMessage("Please fill out all job fields.");
+    return;
+  }
+
+  if (endDate < startDate) {
+    setAppMessage("End date must be on or after start date.");
+    return;
+  }
+
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+  if (endMinutes <= startMinutes) {
+    setAppMessage("Job end time must be after start time.");
+    return;
+  }
+
+  const spotsTotal = parseInt(spotsStr, 10);
+  if (!spotsTotal || spotsTotal <= 0) {
+    setAppMessage("Spots must be at least 1.");
+    return;
+  }
+
+  try {
+    await api("/api/jobs", "POST", {
+      title,
+      description,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      spotsTotal,
+      createdBy: user.email
+    });
+
+    await loadJobs();
+    setAppMessage("Job created.");
+    render();
+  } catch (err) {
+    setAppMessage(err.message || "Could not create job.");
+  }
+}
+
+function openApplyForJob(jobId) {
+  const job = jobs.find(j => j._id === jobId);
+  if (!job) return;
+
+  const user = currentUser();
+  if (!user) {
+    setAppMessage("Please log in first.");
+    return;
+  }
+
+  const multiDay = job.startDate !== job.endDate;
+  const dateOptions = [];
+  let cursor = new Date(job.startDate + "T00:00:00");
+  const end = new Date(job.endDate + "T00:00:00");
+  while (cursor <= end) {
+    const y = cursor.getFullYear();
+    const m = String(cursor.getMonth() + 1).padStart(2, "0");
+    const d = String(cursor.getDate()).padStart(2, "0");
+    dateOptions.push(`${y}-${m}-${d}`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  let dateSelectHtml = "";
+  if (multiDay) {
+    dateSelectHtml = `
+      <label for="applyDate">Which date can you come?</label>
+      <select id="applyDate">
+        ${dateOptions.map(d => `<option value="${d}">${formatMDY(d)}</option>`).join("")}
+      </select>
+    `;
+  } else {
+    dateSelectHtml = `
+      <label>Date</label>
+      <div class="small-muted">${formatMDY(job.startDate)}</div>
+    `;
+  }
+
+  const app = document.getElementById("app");
+  app.innerHTML = renderShell(`
+    <section class="card center-card">
+      <h2>Apply for ${escapeHtml(job.title)}</h2>
+      <p class="small-muted">Fill in your time. KC will be calculated based on how long you can stay.</p>
+
+      ${dateSelectHtml}
+
+      <label for="applyStartTime">What time can you be there from?</label>
+      <input id="applyStartTime" type="time" />
+
+      <label for="applyEndTime">What time until?</label>
+      <input id="applyEndTime" type="time" />
+
+      <div class="footer-space"></div>
+      <div class="card" style="background:#fbfdff;border-style:dashed;">
+        <div class="row space-between">
+          <div>
+            <div class="small-muted">Total Time</div>
+            <div id="applyPreviewDuration" style="font-weight:800;">0 min</div>
+          </div>
+          <div style="text-align:right">
+            <div class="small-muted">KC Earned</div>
+            <div id="applyPreviewKC" style="font-weight:800;">0.0 KC</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-space"></div>
+      <div class="row wrap">
+        <button class="btn" type="button" onclick="applyForJob('${job._id}')">Apply</button>
+        <button class="btn secondary" type="button" onclick="cancelApply()">Cancel</button>
+      </div>
+    </section>
+  `);
+
+  const startInput = document.getElementById("applyStartTime");
+  const endInput = document.getElementById("applyEndTime");
+  const dateSelect = document.getElementById("applyDate");
+
+  function updateApplyPreview() {
+    const start = startInput.value;
+    const end = endInput.value;
+    const durationEl = document.getElementById("applyPreviewDuration");
+    const kcEl = document.getElementById("applyPreviewKC");
+    if (!durationEl || !kcEl) return;
+    if (!start || !end) {
+      durationEl.textContent = "0 min";
+      kcEl.textContent = "0.0 KC";
+      return;
+    }
+    const startMinutes = toMinutes(start);
+    const endMinutes = toMinutes(end);
+    if (endMinutes <= startMinutes) {
+      durationEl.textContent = "Invalid time";
+      kcEl.textContent = "0.0 KC";
+      return;
+    }
+    const minutes = endMinutes - startMinutes;
+    if (minutes <= 10) {
+      durationEl.textContent = "Too short (must be > 10 min)";
+      kcEl.textContent = "0.0 KC";
+      return;
+    }
+    const kc = roundToHalf(minutes / 60);
+    durationEl.textContent = `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
+    kcEl.textContent = `${kc.toFixed(1)} KC`;
+  }
+
+  startInput.addEventListener("input", updateApplyPreview);
+  endInput.addEventListener("input", updateApplyPreview);
+}
+
+function cancelApply() {
+  render();
+}
+
+async function applyForJob(jobId) {
+  const job = jobs.find(j => j._id === jobId);
+  if (!job) {
+    setAppMessage("Job not found.");
+    render();
+    return;
+  }
+
+  const user = currentUser();
+  if (!user) {
+    setAppMessage("Please log in first.");
+    render();
+    return;
+  }
+
+  const multiDay = job.startDate !== job.endDate;
+  let date;
+  if (multiDay) {
+    date = document.getElementById("applyDate")?.value || "";
+  } else {
+    date = job.startDate;
+  }
+
+  const startTime = document.getElementById("applyStartTime")?.value || "";
+  const endTime = document.getElementById("applyEndTime")?.value || "";
+
+  if (!date || !startTime || !endTime) {
+    setAppMessage("Please select date, start time, and end time.");
+    render();
+    return;
+  }
+
+  // Show KC validations client-side same as server
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+  if (endMinutes <= startMinutes) {
+    setAppMessage("End time must be after start time.");
+    render();
+    return;
+  }
+  const minutes = endMinutes - startMinutes;
+  if (minutes <= 10) {
+    setAppMessage("Time must be more than 10 minutes.");
+    render();
+    return;
+  }
+
+  try {
+    const result = await api(`/api/jobs/${jobId}/apply`, "POST", {
+      email: user.email,
+      name: user.name,
+      date,
+      startTime,
+      endTime
+    });
+
+    // Update local user and jobs
+    const updatedUser = result.user;
+    const updatedJob = result.job;
+
+    const idxUser = data.users.findIndex(u => u.email.toLowerCase() === updatedUser.email.toLowerCase());
+    if (idxUser !== -1) {
+      data.users[idxUser] = updatedUser;
+      if (data.currentUserEmail.toLowerCase() === updatedUser.email.toLowerCase()) {
+        data.currentUserEmail = updatedUser.email;
+      }
+    }
+
+    const idxJob = jobs.findIndex(j => j._id === updatedJob._id);
+    if (idxJob !== -1) {
+      jobs[idxJob] = updatedJob;
+    } else {
+      jobs.push(updatedJob);
+    }
+
+    saveData();
+    await loadFromMongo();
+    await loadJobs();
+
+    bookingSuccess = true;
+    render();
+
+    setTimeout(() => {
+      bookingSuccess = false;
+      currentPage = "schedule";
+      render();
+    }, 3000);
+  } catch (err) {
+    setAppMessage(err.message || "Could not apply for this job.");
+    render();
+  }
+}
+
+async function deleteJob(jobId) {
+  const user = currentUser();
+  if (!user || !user.admin) {
+    setAppMessage("Only admins can delete jobs.");
+    return;
+  }
+  if (!confirm("Delete this job?")) return;
+  try {
+    await fetch(`${API_BASE}/api/jobs/${jobId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: user.email })
+    });
+    await loadJobs();
+    setAppMessage("Job deleted.");
+    render();
+  } catch (err) {
+    setAppMessage(err.message || "Could not delete job.");
+  }
+}
+
+/**
+ * Other helpers
+ */
 async function addAdminEmail() {
   const email = prompt("Enter the email to make admin:");
   if (!email) return;
@@ -952,8 +1276,6 @@ document.addEventListener("click", e => {
 window.setAuthMode = setAuthMode;
 window.submitAuth = submitAuth;
 window.logout = logout;
-window.updateLogPreview = updateLogPreview;
-window.saveLog = saveLog;
 window.setRedeemCategory = setRedeemCategory;
 window.changeRedeemKC = changeRedeemKC;
 window.confirmRedeem = confirmRedeem;
@@ -969,12 +1291,17 @@ window.deleteScheduleEntry = deleteScheduleEntry;
 window.togglePassword = togglePassword;
 window.makeAdmin = makeAdmin;
 window.makeMember = makeMember;
+window.createJob = createJob;
+window.openApplyForJob = openApplyForJob;
+window.applyForJob = applyForJob;
+window.cancelApply = cancelApply;
+window.deleteJob = deleteJob;
 window.setPage = page => {
   currentPage = page;
   render();
 };
 
-loadFromMongo().then(() => {
+Promise.all([loadFromMongo(), loadJobs()]).then(() => {
   currentPage = "auth";
   authMode = "signup";
   data.currentUserEmail = "";
